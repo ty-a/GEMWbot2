@@ -32,10 +32,13 @@ public class GEMWbot implements IRCEventListener
 	private String ircChannel;
 	private String nickServUser;
 	private String nickServPass;
+	
+	private GrandExchangeUpdater updateTask;
  
 	public GEMWbot()
 	{
 		loadIRCsettings();
+		updateTask = null;
 
 		manager = new ConnectionManager(new Profile(ircNick));
  
@@ -212,10 +215,15 @@ public class GEMWbot implements IRCEventListener
 				break;
 				
 			case "update":
+				if(updateTask != null) {
+					channel.say(me.getNick() + ": GE Updater is already running!");
+					break;
+				}
 				if(isMod) {
 					channel.say(me.getNick() + ": Starting GE Updates!");
-					GrandExchangeUpdater newTask = new GrandExchangeUpdater(this);
-					newTask.run();
+					updateTask = new GrandExchangeUpdater(this);
+					Thread thread = new Thread(updateTask);
+					thread.start();
 				} else {
 					session.sayPrivate(me.getNick(), "You are not allowed to use the ~update command.");
 				}
@@ -234,6 +242,14 @@ public class GEMWbot implements IRCEventListener
 				} else {
 					session.sayPrivate(me.getNick(), "You are not allowed to use the ~allow command.");
 				}
+				break;
+				
+			case "status":
+				if(updateTask == null) {
+					channel.say(me.getNick() + ": The GE Updater is not running!");
+					break;
+				}
+				channel.say(me.getNick() + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages());
 				break;
 				
 			default:
@@ -311,5 +327,9 @@ public class GEMWbot implements IRCEventListener
 	
 	public String getChannel() {
 		return ircChannel;
+	}
+	
+	protected void setUpdateTaskToNull() {
+		updateTask = null;
 	}
 }

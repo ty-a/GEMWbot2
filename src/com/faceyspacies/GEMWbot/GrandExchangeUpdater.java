@@ -109,7 +109,13 @@ public class GrandExchangeUpdater implements Runnable {
 	
 	@Override
 	public void run() {
-		Start();
+		try {
+			Start();
+		}
+		catch(Exception err) {
+			System.out.println(err.getMessage());
+			ircInstance.setUpdateTaskToNull();
+		}
 	}
 	
 	private void Start() {
@@ -131,8 +137,8 @@ public class GrandExchangeUpdater implements Runnable {
 		errorLog = "";
 		for(int i = 0; i < pages.length; i++) {
 			// update the pages, once it is done add to log
-			addToLog(doUpdates(pages[i]), pages[i]);
 			numberOfPagesUpdated++;
+			addToLog(doUpdates(pages[i]), pages[i]);
 			
 			try {
 				Thread.sleep(3000);
@@ -144,6 +150,7 @@ public class GrandExchangeUpdater implements Runnable {
 		
 		updateLogPage();
 		
+		ircInstance.setUpdateTaskToNull();
 		ircInstance.sendMessage(ircChannel, "GE Updates complete!"); // if we make it to end, we did it
 	}
 	
