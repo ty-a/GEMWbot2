@@ -27,24 +27,24 @@ public class GrandExchangeUpdater implements Runnable {
 	// It will run it its own thread and once it is done, it will be destroyed
 	// so a new object will be created every GE Update
 	
-	private String wikiUserName;
-	private String wikiUserPass;
-	private String logPage;
-	
 	private int numberOfPages;
 	private int numberOfPagesUpdated;
 	
+	private String wikiUserName;
+	private String wikiUserPass;
+	private String logPage;
 	private String wikiURL;
 	private String rsGraphAPILink = "http://services.runescape.com/m=itemdb_rs/api/graph/";
-	
-	private Wiki wikiBot;
-	
-	private String ircChannel = "#tybot";
+	private String ircChannel;
 	private String errorLog;
 	
 	private boolean running;
 	
+	private Wiki wikiBot;
+
 	private GEMWbot ircInstance;
+	
+	private VolumeHandler volumes;
 	
 	GrandExchangeUpdater(GEMWbot ircInstance) {
 		
@@ -58,6 +58,7 @@ public class GrandExchangeUpdater implements Runnable {
 		wikiBot = new Wiki(wikiURL, "");
 		wikiBot.setMarkBot(true);
 		wikiBot.setThrottle(0);
+		errorLog = "";
 		
 	}
 	
@@ -124,6 +125,17 @@ public class GrandExchangeUpdater implements Runnable {
 	private void Start() {
 
 		System.out.println("[INFO] GE Updater has Started");
+		
+		boolean couldLogin = Login();
+		if(!couldLogin) {
+			return; // abort, message was sent in function
+		}
+		
+		volumes = new VolumeHandler();
+		volumes.getVolumes();
+		if(volumes.isEmpty()) {
+			errorLog += "# Failed to get volume data due to connection issue; Attempted to continue\n";
+		}
 
 		String[] pages = getPages(wikiBot);
 		if(pages == null) { // abort, message was sent in function
@@ -132,13 +144,8 @@ public class GrandExchangeUpdater implements Runnable {
 		numberOfPages = pages.length;
 		numberOfPagesUpdated = 0;
 		
-		boolean couldLogin = Login();
-		if(!couldLogin) {
-			return; // abort, message was sent in function
-		}
-		
-		errorLog = "";
-		for(int i = 0; i < pages.length; i++) {
+		 for(int i = 0; i < pages.length; i++) {
+		 
 			// update the pages, once it is done add to log
 			if(running) {
 				numberOfPagesUpdated++;
@@ -152,13 +159,11 @@ public class GrandExchangeUpdater implements Runnable {
 			} else { // if no longer running, stop loop and end
 				return;
 			}
-
 		}
 		
 		updateLogPage();
 		
 		/* Module page testing
-		Login();
 		
 		try {
 			updateModulePage("Module:Exchange/Iron bar");
@@ -340,7 +345,13 @@ public class GrandExchangeUpdater implements Runnable {
 				}
 				
 				pageContent = pageContent.replaceAll("\\n}}", ",");
-				pageContent += price.getTimestamp() + ":" + price.getPrice() + "\n}}";
+				
+				String volume = volumes.getVolumeFor(price.getId());
+				if(volume == null) {
+					pageContent += price.getTimestamp() + ":" + price.getPrice() + "\n}}";
+				} else {
+					pageContent += price.getTimestamp() + ":" + price.getPrice() + ":" + volume  + "\n}}";
+				}
 			
 				wikiBot.edit(pageName, pageContent, "Updating [[" + pageName.replace("_", " ") + "]]");
 				
@@ -456,8 +467,15 @@ public class GrandExchangeUpdater implements Runnable {
 				}
 				
 				pageContent = pageContent.replaceAll("\\n}", ",");
-				pageContent += "'" + price.getTimestamp() + ":" + price.getPrice() + "'\n}";
-			
+				
+				String volume = volumes.getVolumeFor(price.getId());
+				if(volume == null) {
+					pageContent += "'" + price.getTimestamp() + ":" + price.getPrice() + "'\n}";
+
+				} else {
+					pageContent += "'" + price.getTimestamp() + ":" + price.getPrice() + ":" + volume + "'\n}";
+				}
+
 				wikiBot.edit(pageName, pageContent, "Updating [[" + pageName.replace("_", " ") + "]]");
 				
 				return new UpdateResult("", true);
@@ -531,7 +549,7 @@ public class GrandExchangeUpdater implements Runnable {
 			String key = highestSoFar + "000";
 			
 			newPrice = dailyItem.getInt(key);
-			gePrice = new GEPrice(timestamp, newPrice);
+			gePrice = new GEPrice(timestamp, newPrice, id);
 			
 		} catch (IOException e) {
 			System.out.println("[ERROR] Unable to connect to GEMW API.");
