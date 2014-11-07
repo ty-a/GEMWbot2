@@ -5179,7 +5179,7 @@ public class Wiki implements Serializable
         // No varargs namespace here because MW API only supports one namespace
         // for this module.
         StringBuilder url = new StringBuilder(query);
-        url.append("list=allpages&aplimit=max");
+        url.append("list=allpages&aplimit=5000");
         if (!prefix.isEmpty()) // prefix
         {
             // cull the namespace prefix
@@ -5245,8 +5245,11 @@ public class Wiki implements Serializable
             if (maximum < 0 && minimum < 0 && prefix.isEmpty() && protectionstate == null)
                 next = null;
             // find next value
-            else if (line.contains("apcontinue="))
+            
+            if (line.contains("apcontinue="))
                 next = parseAttribute(line, "apcontinue", 0);
+            else
+            	next = null;
 
             // xml form: <p pageid="1756320" ns="0" title="Kre'fey" />
             for (int a = line.indexOf("<p "); a > 0; a = line.indexOf("<p ", ++a))

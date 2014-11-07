@@ -150,6 +150,19 @@ public class GrandExchangeUpdater implements Runnable {
 		
 		updateLogPage();
 		
+		/* Module page testing
+		Login();
+		
+		try {
+			updateModulePage("Module:Exchange/Iron bar");
+		} catch (LoginException | PageIsEmptyException
+				| NoItemIDException | IOException e) {
+			// TODO Auto-generated catch block
+			
+			e.printStackTrace();
+		}
+		*/
+
 		ircInstance.setUpdateTaskToNull();
 		ircInstance.sendMessage(ircChannel, "GE Updates complete!"); // if we make it to end, we did it
 	}
@@ -213,6 +226,7 @@ public class GrandExchangeUpdater implements Runnable {
 				String[] pages = wikiBot.getCategoryMembers("Grand Exchange");
 				return pages;
 			} catch (IOException e1) {
+				failures++;
 				if(failures == 3) {
 					ircInstance.sendMessage(ircChannel, "`tell @wikia/vstf/TyA unable to get page list.");
 					return null;
@@ -326,6 +340,122 @@ public class GrandExchangeUpdater implements Runnable {
 				return new UpdateResult("", true);
 				
 				} 
+			
+			catch (PageIsEmptyException e) {
+				return new UpdateResult("page is empty", false); // cannot recover
+			} 
+			catch (IOException e) {
+				failures++;
+				if(failures == 3) {
+					return new UpdateResult("network failure", false);
+				}
+				
+			} 
+			catch (LoginException e) {
+				failures++;
+				if(failures == 3) {
+					return new UpdateResult("failed to stay logged in", false);
+				}
+				Login();
+			}
+		}
+		
+		return new UpdateResult("", true);
+	}
+	
+	private String[] getModulePages(Wiki wiki) {
+		int failures = 0;
+		
+		while(failures < 3) {
+			try {
+				String[] pages = wiki.listPages("Module:Exchange/", null, 828, -1, -1);
+				return pages;
+			} catch (IOException e1) {
+				failures++;
+				if(failures == 3) {
+					ircInstance.sendMessage(ircChannel, "`tell @wikia/vstf/TyA unable to get page list.");
+					return null;
+				}
+			}
+		}
+		
+		return null;
+	}
+	
+	private boolean updateModulePage(String pageName) throws PageIsEmptyException, NoItemIDException, IOException, ZipException, LoginException {
+		String itemID = null;
+		GEPrice newPrice = null;
+		
+		pageName = pageName.replace(" ", "_");
+		
+		if(pageName.indexOf("Module:Exchange/") == -1) {
+			pageName = "Module:Exchange/" + pageName;
+		}
+		
+		//System.out.println(pageName);
+		
+		String pageContent = wikiBot.getPageText(pageName);
+		//System.out.println(pageContent);
+		
+		if(pageContent.length() == 0) {
+			throw new PageIsEmptyException();
+		}
+		
+		Pattern itemIDregex = Pattern.compile("itemId\\s*= (\\d+)");
+		Matcher itemIDMatcher = itemIDregex.matcher(pageContent);
+		
+		if(itemIDMatcher.find()) {
+			itemID = itemIDMatcher.group(1);
+			System.out.println(itemID);
+		} else {
+			System.out.println("[ERROR] unable to load item id");
+			throw new NoItemIDException();
+		}
+		
+		try {
+			newPrice = loadCurPrice(itemID);
+		} catch (MalformedURLException e) {
+			System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
+		}
+		
+		if(newPrice == null)
+			return false;
+		
+		// remove data that we don't need
+		pageContent = pageContent.replaceAll("\\s*last\\s*=.*\n", "\n");
+		pageContent = pageContent.replaceAll("\\s*lastDate\\s*=.*\n", "\n");
+		
+		//replaces Price/Date with the new date and pushes the old price down to the LastPrice/LastDate param 
+		// which we removed above.
+		pageContent = pageContent.replaceAll("price\\s*=", String.format("price      = %,d,\n    last       = ", newPrice.getPrice()));
+		pageContent = pageContent.replaceAll(" date\\s*=", " date       = '~~~~~',\n    lastDate   = ");
+		
+		wikiBot.edit(pageName, pageContent, "Updating [[" + pageName.replace("_", " ")  + "]]");
+		
+		addToLog(updateModuleData(pageName, newPrice), pageName + "/Data");
+		return true;
+	}
+	
+	private UpdateResult updateModuleData(String pageName, GEPrice price) {
+		pageName = pageName + "/Data";
+		String pageContent;
+		int failures = 0;
+		while(failures < 3) {
+			try {
+				pageContent = wikiBot.getPageText(pageName);
+				
+				if(pageContent.length() == 0) {
+					throw new PageIsEmptyException();
+				}
+				
+				pageContent = pageContent.replaceAll("\\n}", ",");
+				pageContent += "'" + price.getTimestamp() + ":" + price.getPrice() + "'\n}";
+			
+				wikiBot.edit(pageName, pageContent, "Updating [[" + pageName.replace("_", " ") + "]]");
+				
+				return new UpdateResult("", true);
+				
+			} 
 			
 			catch (PageIsEmptyException e) {
 				return new UpdateResult("page is empty", false); // cannot recover

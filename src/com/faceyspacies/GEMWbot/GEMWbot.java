@@ -125,6 +125,16 @@ public class GEMWbot implements IRCEventListener
 			MessageEvent me = (MessageEvent) e;
 			System.out.println("<" + me.getNick() + ">"+ ":" + me.getMessage());
 			
+			if(me.getMessage().startsWith("The Grand Exchange has been updated. RuneScript last detected an updated") && 
+					me.getHostName().endsWith(".bot.rscript.org")) {
+
+				Channel channel = e.getSession().getChannel(ircChannel);
+				channel.say("Starting GE Updates!");
+				updateTask = new GrandExchangeUpdater(this);
+				Thread thread = new Thread(updateTask);
+				thread.start();
+			}
+			
 			if(me.getMessage().charAt(0) == '~') { // we have a command as ~ is our trigger
 				commandHandler(me);
 			}
