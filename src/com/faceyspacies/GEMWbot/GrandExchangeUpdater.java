@@ -42,6 +42,8 @@ public class GrandExchangeUpdater implements Runnable {
 	private String ircChannel = "#tybot";
 	private String errorLog;
 	
+	private boolean running;
+	
 	private GEMWbot ircInstance;
 	
 	GrandExchangeUpdater(GEMWbot ircInstance) {
@@ -109,6 +111,7 @@ public class GrandExchangeUpdater implements Runnable {
 	
 	@Override
 	public void run() {
+		running = true;
 		try {
 			Start();
 		}
@@ -137,13 +140,17 @@ public class GrandExchangeUpdater implements Runnable {
 		errorLog = "";
 		for(int i = 0; i < pages.length; i++) {
 			// update the pages, once it is done add to log
-			numberOfPagesUpdated++;
-			addToLog(doUpdates(pages[i]), pages[i]);
+			if(running) {
+				numberOfPagesUpdated++;
+				addToLog(doUpdates(pages[i]), pages[i]);
 			
-			try {
-				Thread.sleep(3000);
-			} catch (InterruptedException e) {
-				ircInstance.sendMessage(ircChannel, "`tell @wikia/vstf/TyA UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW");
+				try {
+					Thread.sleep(3000);
+				} catch (InterruptedException e) {
+					ircInstance.sendMessage(ircChannel, "`tell @wikia/vstf/TyA UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW");
+				}
+			} else { // if no longer running, stop loop and end
+				return;
 			}
 
 		}
@@ -540,5 +547,10 @@ public class GrandExchangeUpdater implements Runnable {
 	
 	public int getNumberOfPagesUpdated() {
 		return numberOfPagesUpdated;
+	}
+	
+	protected void stopRunning() {
+		running = false;
+		
 	}
 }

@@ -202,6 +202,11 @@ public class GEMWbot implements IRCEventListener
 			case "die":
 				if(isAdmin) {
 					manager.quit("Requested");
+					
+					if(updateTask != null) {
+						updateTask.stopRunning();
+					}
+					
 				} else {
 					session.sayPrivate(me.getNick(), "You are not allowed to use the ~die command.");
 				}
