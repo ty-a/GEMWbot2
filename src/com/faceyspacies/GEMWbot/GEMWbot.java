@@ -143,7 +143,6 @@ public class GEMWbot implements IRCEventListener
 			}
 		}
 		else if(e.getType() == Type.DEFAULT){
-			System.out.println(e.getType() + " " + e.getRawEventData());
 			
 			if(e.getRawEventData().substring(0, 4).equalsIgnoreCase("PING")) {
 				return;
