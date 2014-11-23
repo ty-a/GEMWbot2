@@ -284,10 +284,6 @@ public class GrandExchangeUpdater implements Runnable {
 	private String[] getPages(Wiki wikiBot) {
 		
 		int failures = 0;
-		String[] page = new String[1];
-		page[0] = "Exchange:Iron_bar";
-		return page;
-		/*
 		
 		while(failures < 3) {
 			try {
@@ -305,7 +301,6 @@ public class GrandExchangeUpdater implements Runnable {
 		} 
 		
 		return null; // shouldn't reach here, but if we do assume we have failed. 
-		*/
 	}
 	
 	private UpdateResult updatePage(String pageName) throws IOException, LoginException {
