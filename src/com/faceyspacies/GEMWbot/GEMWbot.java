@@ -305,6 +305,10 @@ public class GEMWbot implements IRCEventListener
 				channel.say(me.getNick() +": My commands can be found on my userpage at [[User:TyBot]].");
 				break;
 				
+			case "source":
+				channel.say(me.getNick() + ": My source code is available at https://github.com/ty-a/GEMWbot2");
+				break;
+				
 			default:
 				System.out.println("[INFO] Unknown command " + command + " used by " + me.getNick() + "!");
 				
