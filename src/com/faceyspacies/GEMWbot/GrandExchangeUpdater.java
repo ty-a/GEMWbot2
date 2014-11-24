@@ -29,6 +29,8 @@ public class GrandExchangeUpdater implements Runnable {
 	private int numberOfPagesUpdated;
 	private int runningMode;
 	
+	private GEPrice price; // temp for having to update both to save calls to gemw api
+	
 	private String wikiUserName;
 	private String wikiUserPass;
 	private String logPage;
@@ -59,7 +61,9 @@ public class GrandExchangeUpdater implements Runnable {
 		wikiBot.setThrottle(0);
 		errorLog = "";
 		
-		runningMode = 1; // 0 = exchange, 1 = module, 2 = both
+		runningMode = 0; // 0 = exchange, 1 = module, 2 = both
+		
+		price = null;
 		
 	}
 	
@@ -115,11 +119,12 @@ public class GrandExchangeUpdater implements Runnable {
 	public void run() {
 
 		running = true;
+		
 		try {
 			Start();
 		}
 		catch(Exception err) {
-			System.out.println(err.getMessage());
+			err.printStackTrace();
 			ircInstance.setUpdateTaskToNull();
 		}
 	}
@@ -162,6 +167,7 @@ public class GrandExchangeUpdater implements Runnable {
 		if(pages == null) { // abort, message was sent in function
 			return;
 		}
+		
 		numberOfPages = pages.length;
 		numberOfPagesUpdated = 0;
 		
@@ -185,18 +191,6 @@ public class GrandExchangeUpdater implements Runnable {
 		}
 		
 		updateLogPage();
-		
-		/* Module page testing
-		
-		try {
-			updateModulePage("Module:Exchange/Iron bar");
-		} catch (LoginException | PageIsEmptyException
-				| NoItemIDException | IOException e) {
-			// TODO Auto-generated catch block
-			
-			e.printStackTrace();
-		}
-		*/
 
 		ircInstance.setUpdateTaskToNull();
 		ircInstance.sendMessage(ircChannel, "GE Updates complete!"); // if we make it to end, we did it
@@ -252,6 +246,7 @@ public class GrandExchangeUpdater implements Runnable {
 		failures = 0;
 		
 		while(failures < 3) {
+			price = null;
 			try {
 				// all items that do not throw exceptions are not recoverable
 				switch(runningMode) {
@@ -342,6 +337,9 @@ public class GrandExchangeUpdater implements Runnable {
 			System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
 			return new UpdateResult("item id is invalid", false);
 		}
+		
+		if(runningMode == 2) // so we don't have to refetch it and worry about the rate limit
+			this.price = newPrice;
 		
 		if(newPrice == null)
 			return new UpdateResult("unable to fetch price", false);
@@ -485,11 +483,15 @@ public class GrandExchangeUpdater implements Runnable {
 			return new UpdateResult("unable to load item id", false);
 		}
 		
-		try {
-			newPrice = loadCurPrice(itemID);
-		} catch (MalformedURLException e) {
-			System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
-			return new UpdateResult("item id is invalid", false);
+		if(runningMode == 2) {
+			newPrice = price;
+		} else {
+			try {
+				newPrice = loadCurPrice(itemID);
+			} catch (MalformedURLException e) {
+				System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
+				return new UpdateResult("item id is invalid", false);
+			}
 		}
 		
 		if(newPrice == null)
@@ -498,8 +500,18 @@ public class GrandExchangeUpdater implements Runnable {
 		String volume = volumes.getVolumeFor(newPrice.getId());
 		if(volume != null) { // WE HAVE VOLUME DATA, WOO!
 			// since we don't need the data again, it is safe to just remove it
-			pageContent = pageContent.replaceAll("volume\\s*=.*\\n", "volume     = " + volume + ",\n");
-			pageContent = pageContent.replaceAll("volumeDate\\s*=.*\\n", "volumeDate = '~~~~~',\n");
+			if(pageContent.indexOf("volume") == -1) {
+				pageContent = pageContent.replaceAll("volume\\s*=.*\\n", "volume     = " + volume + ",\n");
+				pageContent = pageContent.replaceAll("volumeDate\\s*=.*\\n", "volumeDate = '~~~~~',\n");
+			} else {
+				// newly has volume
+				String newVolText;
+				newVolText = "    -- volume data\n";
+				newVolText += "    volume     = " + volume +",\n";
+				newVolText += "    volumeDate = '~~~~~',\n";
+				newVolText += "    -- usage in GEMW";
+				pageContent = pageContent.replaceAll("    -- usage in GEMW", newVolText);
+			}
 		}
 		
 		// remove data that we don't need
