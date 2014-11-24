@@ -246,6 +246,10 @@ public class GEMWbot implements IRCEventListener
 			case "allow":
 				if(isMod) {
 					try {
+						if(allowedHosts.contains(fullCommand.split(" ")[1])) {
+							channel.say(me.getNick() + ": " + fullCommand.split(" ")[1] + " is already allowed to use ~update");
+							return;
+						}
 						allowedHosts.add(fullCommand.split(" ")[1]);
 						saveSettings();
 						
@@ -258,12 +262,47 @@ public class GEMWbot implements IRCEventListener
 				}
 				break;
 				
+			case "disallow":
+				if(isMod) {
+					try {
+						if(!allowedHosts.contains(fullCommand.split(" ")[1])) {
+							channel.say(me.getNick() + ": " + fullCommand.split(" ")[1] + " isn't allowed to use ~update");
+							return;
+						}
+						allowedHosts.remove(fullCommand.split(" ")[1]);
+						saveSettings();
+						
+						channel.say(me.getNick() + ": " + fullCommand.split(" ")[1] + " is no longer allowed to use ~update");
+					} catch (IndexOutOfBoundsException err) {
+						channel.say(me.getNick() + ": You forgot to specify a host");
+					}
+				} else {
+					session.sayPrivate(me.getNick(), "You are not allowed to use the ~disallow command.");
+				}
+				break;
+				
 			case "status":
 				if(updateTask == null) {
 					channel.say(me.getNick() + ": The GE Updater is not running!");
 					break;
 				}
 				channel.say(me.getNick() + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages());
+				break;
+			
+			case "allowed":
+				String hosts = "";
+				
+				for(int i = 0; i < allowedHosts.size(); i++) {
+					hosts+= allowedHosts.get(i) + ",";
+				}
+				
+				hosts = hosts.substring(0, hosts.length() -1);
+				
+				channel.say(me.getNick() + ": " + hosts + " are allowed to use ~update");
+				break;
+				
+			case "help":
+				channel.say(me.getNick() +": My commands can be found on my userpage at [[User:TyBot]].");
 				break;
 				
 			default:
