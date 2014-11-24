@@ -125,7 +125,7 @@ public class GEMWbot implements IRCEventListener
 			MessageEvent me = (MessageEvent) e;
 			System.out.println("<" + me.getNick() + ">"+ ":" + me.getMessage());
 			
-			if(me.getMessage().startsWith("The Grand Exchange has been updated. RuneScript last detected an updated") && 
+			if(me.getMessage().contains("The Grand Exchange has been updated. RuneScript last detected an updated") && 
 					me.getHostName().endsWith(".bot.rscript.org")) {
 
 				Channel channel = e.getSession().getChannel(ircChannel);
@@ -225,7 +225,7 @@ public class GEMWbot implements IRCEventListener
 				break;
 				
 			case "test":
-				channel.say(me.getNick() + ": Hello!");
+				channel.say(me.getNick() + ": Hai <3!");
 				break;
 				
 			case "update":
