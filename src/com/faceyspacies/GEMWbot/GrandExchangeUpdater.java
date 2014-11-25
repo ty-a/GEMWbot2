@@ -283,8 +283,8 @@ public class GrandExchangeUpdater implements Runnable {
 		while(failures < 3) {
 			try {
 				// test wiki does not have namespace 112, but main wiki does
-				//String[] pages = wikiBot.getCategoryMembers("Grand Exchange", 112);
-				String[] pages = wikiBot.getCategoryMembers("Grand Exchange");
+				String[] pages = wikiBot.getCategoryMembers("Grand Exchange", 112);
+				//String[] pages = wikiBot.getCategoryMembers("Grand Exchange");
 				return pages;
 			} catch (IOException e1) {
 				failures++;
