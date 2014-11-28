@@ -369,7 +369,7 @@ public class GrandExchangeUpdater implements Runnable {
 		
 		pageContent = pageContent.replaceAll("\\|Date=", "|Date=~~~~~\n|LastDate=");
 		
-		wikiBot.edit(pageName, pageContent, "Updating [[" + pageName.replace("_", " ")  + "]]");
+		wikiBot.edit(pageName, pageContent, "Updating price");
 		
 		addToLog(doDataUpdate(pageName, newPrice), pageName + "/Data");
 		return new UpdateResult("", true);
@@ -433,7 +433,7 @@ public class GrandExchangeUpdater implements Runnable {
 			pageContent += price.getTimestamp() + ":" + price.getPrice() + ":" + volume  + "\n}}";
 		}
 		
-		wikiBot.edit(pageName, pageContent, "Updating [[" + pageName.replace("_", " ") + "]]");
+		wikiBot.edit(pageName, pageContent, "Updating price data");
 		
 		return new UpdateResult("", true);
 	}
@@ -522,7 +522,7 @@ public class GrandExchangeUpdater implements Runnable {
 		pageContent = pageContent.replaceAll("price\\s*=", String.format("price      = %,d,\n    last       = ", newPrice.getPrice()));
 		pageContent = pageContent.replaceAll(" date\\s*=", " date       = '~~~~~',\n    lastDate   = ");
 		
-		wikiBot.edit(pageName, pageContent, "Updating [[" + pageName.replace("_", " ")  + "]]");
+		wikiBot.edit(pageName, pageContent, "Updating price");
 		
 		addToLog(doDataUpdate(pageName, newPrice), pageName + "/Data");
 		return new UpdateResult("", true);
@@ -546,7 +546,7 @@ public class GrandExchangeUpdater implements Runnable {
 			pageContent += "    '" + price.getTimestamp() + ":" + price.getPrice() + ":" + volume + "'\n}";
 		}
 
-		wikiBot.edit(pageName, pageContent, "Updating [[" + pageName.replace("_", " ") + "]]");
+		wikiBot.edit(pageName, pageContent, "Updating price data");
 		
 		return new UpdateResult("", true);
 	}
