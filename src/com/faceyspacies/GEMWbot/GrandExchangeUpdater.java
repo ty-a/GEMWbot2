@@ -347,7 +347,7 @@ public class GrandExchangeUpdater implements Runnable {
 		String volume = volumes.getVolumeFor(newPrice.getId());
 		if(volume != null) { // WE HAVE VOLUME DATA, WOO!
 			// since we don't need the data again, it is safe to just remove it
-			if(pageContent.indexOf("Volume=") != -1) {
+			if(pageContent.indexOf("VolumeDate=") != -1) {
 				pageContent = pageContent.replaceAll("\\|Volume=.*\\n", "\\|Volume=" + volume + "\n");
 				pageContent = pageContent.replaceAll("\\|VolumeDate=.*\\n", "\\|VolumeDate=~~~~~\n");
 			} else { // Does not have volume fields on page, but has data. probs newly on top100
@@ -500,17 +500,16 @@ public class GrandExchangeUpdater implements Runnable {
 		String volume = volumes.getVolumeFor(newPrice.getId());
 		if(volume != null) { // WE HAVE VOLUME DATA, WOO!
 			// since we don't need the data again, it is safe to just remove it
-			if(pageContent.indexOf("volume") == -1) {
+			if(pageContent.indexOf("volumeDate") == -1) {
 				pageContent = pageContent.replaceAll("volume\\s*=.*\\n", "volume     = " + volume + ",\n");
 				pageContent = pageContent.replaceAll("volumeDate\\s*=.*\\n", "volumeDate = '~~~~~',\n");
 			} else {
 				// newly has volume
 				String newVolText;
-				newVolText = "    -- volume data\n";
-				newVolText += "    volume     = " + volume +",\n";
+				newVolText = "    volume     = " + volume +",\n";
 				newVolText += "    volumeDate = '~~~~~',\n";
-				newVolText += "    -- usage in GEMW";
-				pageContent = pageContent.replaceAll("    -- usage in GEMW", newVolText);
+				newVolText += "    icon";
+				pageContent = pageContent.replaceAll("    icon", newVolText);
 			}
 		}
 		
