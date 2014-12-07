@@ -134,7 +134,6 @@ public class GEMWbot implements IRCEventListener
 		else if (e.getType() == Type.CHANNEL_MESSAGE)
 		{
 			MessageEvent me = (MessageEvent) e;
-			System.out.println("<" + me.getNick() + ">"+ ":" + me.getMessage());
 			
 			if(me.getMessage().contains("The Grand Exchange has been updated. RuneScript last detected an update") && 
 					me.getHostName().endsWith(".bot.rscript.org")) {
@@ -176,12 +175,6 @@ public class GEMWbot implements IRCEventListener
 			if(eventCode == 396) {
 				e.getSession().join(ircChannel);
 			}
-		}
-		
-		else
-		{
-			System.out.println(e.getType() + " " + e.getRawEventData());
-			
 		}
 	}
 	

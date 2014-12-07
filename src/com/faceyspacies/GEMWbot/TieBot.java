@@ -15,7 +15,7 @@ import jerklib.events.MessageEvent;
 public class TieBot implements jerklib.listeners.IRCEventListener {
 	private ConnectionManager manager;
 	private GEMWbot mainIRC;
-	private Wiki wiki = new Wiki("runescape.wikia.com");
+	private Wiki wiki = new Wiki("runescape.wikia.com", "");
 	
 	public TieBot(ConnectionManager manager, GEMWbot main) {
 		this.manager = manager;
@@ -58,21 +58,36 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			return;
 		
 		fullWikiUrl = message.substring(message.indexOf("http://"), message.indexOf(" * "));
+		fullWikiUrl = processWikiUrl(fullWikiUrl);
 		
 		int nameStart = message.indexOf(" * ") + 3;
 		int nameEnd = message.indexOf(" * ", nameStart);
 		user = message.substring(nameStart, nameEnd);
-		
 		summary = message.substring(nameEnd + 3);
 		
-		Session mainSession = manager.getSession("irc.freenode.net");
-		Channel channel = mainSession.getChannel(mainIRC.ircChannel);
-		if(channel == null)
-			return;
-		channel.say(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
+		if(!isBotUser(user)) {
+			Session mainSession = manager.getSession("irc.freenode.net");
+			Channel channel = mainSession.getChannel(mainIRC.ircChannel);
+			if(channel == null)
+				return;
+			channel.say(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
+		}
 		
 	}
 	
+	private String processWikiUrl(String fullWikiUrl) {
+		fullWikiUrl = fullWikiUrl.replace("runescape", "rs");
+		fullWikiUrl = fullWikiUrl.replace("index.php", "");
+		if(fullWikiUrl.indexOf("rcid") != -1) { // page is probs new
+			fullWikiUrl = fullWikiUrl.replace("oldid", "diff");
+			fullWikiUrl = fullWikiUrl.substring(0, fullWikiUrl.indexOf("&rcid"));
+			return fullWikiUrl;
+		}
+		if(fullWikiUrl.indexOf("oldid") != -1) 
+			fullWikiUrl = fullWikiUrl.substring(0, fullWikiUrl.indexOf("&oldid"));
+		return fullWikiUrl;
+	}
+
 	public boolean isFollowedWiki(String wiki) {
 		return(wiki.equalsIgnoreCase("runescape"));
 	}
@@ -98,11 +113,10 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		return false;
 	}
 	
-	// does not currently work, not sure if logic error, a different error of mine, 
-	// or error with library so it is removed for now
 	public boolean isBotUser(String user) {
 		try {
 			User target = wiki.getUser(user.trim());
+			
 			if(target == null) { // an IP, can't be a bot
 				return false;
 			}
