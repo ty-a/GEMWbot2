@@ -24,6 +24,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 
 	@Override
 	public void receiveEvent(IRCEvent e) {
+		
 		if (e.getType() == Type.CONNECT_COMPLETE)
 		{
 			// Feed network has no NickServ, so there can be no authentication
@@ -113,5 +114,4 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			return false;
 		}
 	}
-
 }

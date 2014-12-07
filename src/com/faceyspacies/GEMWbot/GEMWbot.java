@@ -33,6 +33,8 @@ public class GEMWbot implements IRCEventListener
 	private String nickServUser;
 	private String nickServPass;
 	protected Boolean enableTieBot;
+	private Session rcSession;
+	private TieBot tieBotInstance;
 	
 	private GrandExchangeUpdater updateTask;
  
@@ -40,14 +42,15 @@ public class GEMWbot implements IRCEventListener
 	{
 		loadIRCsettings();
 		updateTask = null;
+		tieBotInstance = null;
+		rcSession = null;
 
 		manager = new ConnectionManager(new Profile(ircNick));
  
 		Session session = manager.requestConnection(ircServer); 
 		session.addIRCEventListener(this);
 		if(enableTieBot) {
-			Session rcSession = manager.requestConnection("feedNetwork", /*feedPort*/6667);
-			rcSession.addIRCEventListener(new TieBot(manager, this));
+			createTieBotInstance();
 		}
 	}
  
@@ -289,6 +292,47 @@ public class GEMWbot implements IRCEventListener
 				}
 				break;
 				
+			case "tiebot":
+				if(isMod) {
+					try {
+						String mode = fullCommand.split(" ")[1].toLowerCase();
+						boolean on;
+						if(mode.equalsIgnoreCase("on"))
+							on = true;
+						else if(mode.equalsIgnoreCase("off"))
+							on = false;
+						else {
+							channel.say(me.getNick() + ": Invalid syntax. Use ~tiebot on/off");
+							return;
+						}
+						
+						if(on) {
+							if(tieBotInstance != null) {
+								channel.say(me.getNick() + ": TieBot is already running!");
+								return;
+							}
+							
+							createTieBotInstance();
+							channel.say(me.getNick() + ": Starting TieBot!");
+						} else { // stop running
+							if(tieBotInstance == null) {
+								channel.say(me.getNick() + ": TieBot isn't running!");
+								return;
+							}
+							
+							channel.say(me.getNick() + ": Stopping TieBot!");
+							rcSession.close("Requested by " + me.getNick());
+							tieBotInstance = null;
+						}
+					} catch (IndexOutOfBoundsException err) {
+						channel.say(me.getNick() + ": Invalid syntax. Use ~tiebot on/off!");
+						return;
+					}
+				} else {
+					session.sayPrivate(me.getNick(),  "You are not allowed to use the ~tiebot command");
+				}
+				break;
+				
 			case "status":
 				if(updateTask == null) {
 					channel.say(me.getNick() + ": The GE Updater is not running!");
@@ -396,5 +440,11 @@ public class GEMWbot implements IRCEventListener
 	
 	protected void setUpdateTaskToNull() {
 		updateTask = null;
+	}
+	
+	private void createTieBotInstance() {
+		rcSession = manager.requestConnection("feedNetwork", /*feedPort*/6667);
+		tieBotInstance = new TieBot(manager, this);
+		rcSession.addIRCEventListener(tieBotInstance);
 	}
 }
