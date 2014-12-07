@@ -14,9 +14,11 @@ import java.util.Iterator;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import javax.security.auth.login.FailedLoginException;
 import javax.security.auth.login.LoginException;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.wikipedia.Wiki;
 
@@ -331,18 +333,34 @@ public class GrandExchangeUpdater implements Runnable {
 
 		}
 		
-		try {
-			newPrice = loadCurPrice(itemID);
-		} catch (MalformedURLException e) {
-			System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
-			return new UpdateResult("item id is invalid", false);
+		for(int i = 0; i < 3; i++) {
+			try {
+				newPrice = loadCurPrice(itemID);
+			} catch (MalformedURLException e) {
+				System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
+				return new UpdateResult("item id is invalid", false);
+			}
+			
+			if(newPrice == null) {
+				try {
+					Thread.sleep(3000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+				newPrice = loadCurPrice(itemID);
+			} else {
+				break;
+			}
 		}
+		
+		// if after three tries we still cannot get a price, give up 
+		if(newPrice == null)
+			return new UpdateResult("unable to fetch price", false);
 		
 		if(runningMode == 2) // so we don't have to refetch it and worry about the rate limit
 			this.price = newPrice;
-		
-		if(newPrice == null)
-			return new UpdateResult("unable to fetch price", false);
 		
 		String volume = volumes.getVolumeFor(newPrice.getId());
 		if(volume != null) { // WE HAVE VOLUME DATA, WOO!
@@ -486,14 +504,29 @@ public class GrandExchangeUpdater implements Runnable {
 		if(runningMode == 2) {
 			newPrice = price;
 		} else {
-			try {
-				newPrice = loadCurPrice(itemID);
-			} catch (MalformedURLException e) {
-				System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
-				return new UpdateResult("item id is invalid", false);
+			for(int i = 0; i < 3; i++) {
+				try {
+					newPrice = loadCurPrice(itemID);
+				} catch (MalformedURLException e) {
+					System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
+					return new UpdateResult("item id is invalid", false);
+				}
+				
+				if(newPrice == null) {
+					try {
+						Thread.sleep(3000);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					
+					newPrice = loadCurPrice(itemID);
+				} else {
+					break;
+				}
 			}
 		}
-		
+		// if after three tries we still cannot get a price, give up 
 		if(newPrice == null)
 			return new UpdateResult("unable to fetch price", false);
 		
@@ -600,6 +633,9 @@ public class GrandExchangeUpdater implements Runnable {
 			
 		} catch (IOException e) {
 			System.out.println("[ERROR] Unable to connect to GEMW API.");
+			return null;
+		} catch (JSONException e)  {
+			System.out.println("[ERROR] Unable to process JSON");
 			return null;
 		}
 		
