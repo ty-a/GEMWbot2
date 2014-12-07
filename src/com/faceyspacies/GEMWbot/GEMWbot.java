@@ -29,9 +29,10 @@ public class GEMWbot implements IRCEventListener
 	private String ircServer;
 	private ArrayList<String> allowedHosts;
 	private List<String> adminHosts;
-	private String ircChannel;
+	protected String ircChannel;
 	private String nickServUser;
 	private String nickServPass;
+	protected Boolean enableTieBot;
 	
 	private GrandExchangeUpdater updateTask;
  
@@ -42,10 +43,12 @@ public class GEMWbot implements IRCEventListener
 
 		manager = new ConnectionManager(new Profile(ircNick));
  
-		Session session = manager.requestConnection(ircServer);
- 
+		Session session = manager.requestConnection(ircServer); 
 		session.addIRCEventListener(this);
- 
+		if(enableTieBot) {
+			Session rcSession = manager.requestConnection("feedNetwork", /*feedPort*/6667);
+			rcSession.addIRCEventListener(new TieBot(manager, this));
+		}
 	}
  
 	private void loadIRCsettings() {
@@ -65,6 +68,11 @@ public class GEMWbot implements IRCEventListener
 			ircChannel = ircSettings.getProperty("ircChannel");
 			nickServUser = ircSettings.getProperty("nickServUser");
 			nickServPass = ircSettings.getProperty("nickServPass");
+			String temp = ircSettings.getProperty("enableTieBot");
+			if(temp == null) 
+				enableTieBot = false;
+			else
+				enableTieBot = temp.equals("true") ? true : false;
 			
 			if(ircNick == null) {
 				System.out.println("[ERROR] ircNick is missing from irc.properties; closing");
