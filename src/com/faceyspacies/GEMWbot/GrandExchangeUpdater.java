@@ -61,6 +61,7 @@ public class GrandExchangeUpdater implements Runnable {
 		wikiBot = new Wiki(wikiURL, "");
 		wikiBot.setMarkBot(true);
 		wikiBot.setThrottle(0);
+		wikiBot.setUserAgent("TyA's TyBot running the Grand Exchange Updater. https://github.com/ty-a/GEMWbot2");
 		errorLog = "";
 		
 		runningMode = 0; // 0 = exchange, 1 = module, 2 = both
@@ -126,6 +127,7 @@ public class GrandExchangeUpdater implements Runnable {
 			Start();
 		}
 		catch(Exception err) {
+			System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
 			err.printStackTrace();
 			ircInstance.setUpdateTaskToNull();
 		}
@@ -263,7 +265,7 @@ public class GrandExchangeUpdater implements Runnable {
 			} catch (IOException e) {
 				failures++;
 				if(failures == 3) {
-					return new UpdateResult("network failure", false);
+					return new UpdateResult("network failure; " + e.getClass() + e.getMessage(), false);
 				}
 				
 			} catch (LoginException e) {
@@ -411,7 +413,7 @@ public class GrandExchangeUpdater implements Runnable {
 			} catch (IOException e) {
 				failures++;
 				if(failures == 3) {
-					return new UpdateResult("network failure", false);
+					return new UpdateResult("network failure; " + e.getClass() + e.getMessage(), false);
 				}
 				
 			} catch (LoginException e) {
@@ -432,17 +434,21 @@ public class GrandExchangeUpdater implements Runnable {
 		
 		doesExist = (boolean) wikiBot.getPageInfo(pageName).get("exists");
 		if(!doesExist) {
-			return new UpdateResult("page does not exist", false);
-		}
-		
-		pageContent = wikiBot.getPageText(pageName);
-		
-		if(pageContent.length() == 0) {
-			return new UpdateResult("page is empty", false);
+			pageContent = "{{ExcgData|name={{subst:PAGENAME}}|size={{{size|}}}|\n";
+		} else {
+			pageContent = wikiBot.getPageText(pageName);
+			
+			//Page may have been vandalised, so just add the data that would've been added here so it can be manually added later
+			// If there is no volume, it will say null
+			if(pageContent.length() == 0) {
+				return new UpdateResult("page is empty; " + price.getTimestamp() + ":" + price.getPrice() 
+						+ volumes.getVolumeFor(price.getId()), false);
+				
+			}
+			
+			pageContent = pageContent.replaceAll("\\n}}", ",");
 			
 		}
-		
-		pageContent = pageContent.replaceAll("\\n}}", ",");
 		
 		String volume = volumes.getVolumeFor(price.getId());
 		if(volume == null) {
@@ -563,14 +569,25 @@ public class GrandExchangeUpdater implements Runnable {
 	
 	private UpdateResult updateModuleData(String pageName, GEPrice price) throws LoginException, IOException {
 		String pageContent;
-
-		pageContent = wikiBot.getPageText(pageName);
+		boolean doesExist;
 		
-		if(pageContent.length() == 0) {
-			return new UpdateResult("page is empty", false);
+		doesExist = (boolean) wikiBot.getPageInfo(pageName).get("exists");
+		if(!doesExist) {
+			pageContent = "return {\n";
+		} else {
+			pageContent = wikiBot.getPageText(pageName);
+			
+			//Page may have been vandalised, so just add the data that would've been added here so it can be manually added later
+			// If there is no volume, it will say null
+			if(pageContent.length() == 0) {
+				return new UpdateResult("page is empty; " + price.getTimestamp() + ":" + price.getPrice() 
+						+ volumes.getVolumeFor(price.getId()), false);
+				
+			}
+			
+			pageContent = pageContent.replaceAll("\\n}", ",");
+			
 		}
-		
-		pageContent = pageContent.replaceAll("\\n}", ",");
 		
 		String volume = volumes.getVolumeFor(price.getId());
 		if(volume == null) {
@@ -593,6 +610,7 @@ public class GrandExchangeUpdater implements Runnable {
 		try {
 			
 			request = (HttpURLConnection) url.openConnection();
+			request.setRequestProperty("User-Agent", "GEMWBot2 - The RuneScape Wiki's Grand Exchange Price Database Updater. https://github.com/ty-a/GEMWbot2");
 			request.connect();
 			
 			BufferedReader response = new BufferedReader(new InputStreamReader(request.getInputStream()));
