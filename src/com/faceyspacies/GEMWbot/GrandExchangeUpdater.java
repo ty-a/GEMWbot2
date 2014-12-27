@@ -373,7 +373,7 @@ public class GrandExchangeUpdater implements Runnable {
 			} else { // Does not have volume fields on page, but has data. probs newly on top100
 				String newVolText = "";
 				newVolText = "|Volume= " + volume + "\n";
-				newVolText += "|VolumeData=~~~~~\n";
+				newVolText += "|VolumeDate=~~~~~\n";
 				newVolText += "|Limit=";
 				pageContent = pageContent.replaceAll("\\|Limit=", newVolText);
 			}

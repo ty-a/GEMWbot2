@@ -98,9 +98,26 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			return true;
 		else if(page.startsWith("RuneScape:Clan Chat/Requests for CC Rank/"))
 			return true;
-		else if(page.startsWith("RuneScape:Requests for "))
+		else if(page.startsWith("RuneScape:Requests for ")) {
+			
+			if(page.indexOf("/") == -1) {
+				// If there is no /, it is most likely the base page.
+				// We don't need to know about edits to that as the discussion happens on
+				// sub pages
+				return false;
+			}
+			
+			if(page.toLowerCase().indexOf("/archive") != -1) {
+				// This page is most likely an archive. 
+				// archives usually take the form of /Archive int 
+				// where int is the current archive number
+				return false;
+			}
+				
+			
 			return true;
-		
+		}
+
 		switch(page) {
 			case "RuneScape:User help":
 			case "RuneScape:Administrator requests":
