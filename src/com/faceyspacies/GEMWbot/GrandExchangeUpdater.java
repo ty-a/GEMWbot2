@@ -64,7 +64,7 @@ public class GrandExchangeUpdater implements Runnable {
 		wikiBot.setUserAgent("TyA's TyBot running the Grand Exchange Updater. https://github.com/ty-a/GEMWbot2");
 		errorLog = "";
 		
-		runningMode = 0; // 0 = exchange, 1 = module, 2 = both
+		runningMode = 2; // 0 = exchange, 1 = module, 2 = both
 		
 		price = null;
 		
@@ -558,7 +558,7 @@ public class GrandExchangeUpdater implements Runnable {
 		
 		//replaces Price/Date with the new date and pushes the old price down to the LastPrice/LastDate param 
 		// which we removed above.
-		pageContent = pageContent.replaceAll("price\\s*=", String.format("price      = %,d,\n    last       = ", newPrice.getPrice()));
+		pageContent = pageContent.replaceAll("price\\s*=", String.format("price      = %d,\n    last       = ", newPrice.getPrice()));
 		pageContent = pageContent.replaceAll(" date\\s*=", " date       = '~~~~~',\n    lastDate   = ");
 		
 		wikiBot.edit(pageName, pageContent, "Updating price");
