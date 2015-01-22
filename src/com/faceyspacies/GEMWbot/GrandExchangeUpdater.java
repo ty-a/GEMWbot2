@@ -10,6 +10,9 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.regex.Matcher;
@@ -62,6 +65,7 @@ public class GrandExchangeUpdater implements Runnable {
 		wikiBot.setMarkBot(true);
 		wikiBot.setThrottle(0);
 		wikiBot.setUserAgent("TyA's TyBot running the Grand Exchange Updater. https://github.com/ty-a/GEMWbot2");
+		wikiBot.setUsingCompressedRequests(false); // Wikia fails anywhere from 20-50 times a run on this
 		errorLog = "";
 		
 		runningMode = 2; // 0 = exchange, 1 = module, 2 = both
@@ -124,7 +128,7 @@ public class GrandExchangeUpdater implements Runnable {
 		running = true;
 		
 		try {
-			Start();
+			Start();			
 		}
 		catch(Exception err) {
 			System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
@@ -194,6 +198,8 @@ public class GrandExchangeUpdater implements Runnable {
 			}
 		}
 		
+		updateTradeIndexData();
+		
 		updateLogPage();
 
 		ircInstance.setUpdateTaskToNull();
@@ -241,7 +247,7 @@ public class GrandExchangeUpdater implements Runnable {
 	
 	private void addToLog(UpdateResult status, String pageName) {
 		if(!status.getSuccess()) {
-			errorLog += "# [[" + pageName.replace("_", " ") + "]] - " + status.getResult() + "\n"; 
+			errorLog += "# [{{fullurl:" + pageName.replace("_", " ") + "}} " + pageName.replace("_", " ") + "] - " + status.getResult() + "\n"; 
 		}
 	}
 
@@ -265,7 +271,7 @@ public class GrandExchangeUpdater implements Runnable {
 			} catch (IOException e) {
 				failures++;
 				if(failures == 3) {
-					return new UpdateResult("network failure; " + e.getClass() + e.getMessage(), false);
+					return new UpdateResult("network failure; " + e.getClass() + " " +  e.getMessage(), false);
 				}
 				
 			} catch (LoginException e) {
@@ -413,7 +419,7 @@ public class GrandExchangeUpdater implements Runnable {
 			} catch (IOException e) {
 				failures++;
 				if(failures == 3) {
-					return new UpdateResult("network failure; " + e.getClass() + e.getMessage(), false);
+					return new UpdateResult("network failure; " + e.getClass() + " " + e.getMessage(), false);
 				}
 				
 			} catch (LoginException e) {
@@ -429,8 +435,10 @@ public class GrandExchangeUpdater implements Runnable {
 	}
 	
 	private UpdateResult updateData(String pageName, GEPrice price) throws LoginException, IOException {
-		String pageContent;		
+		String pageContent;
+		String volume;
 		boolean doesExist;
+		boolean hasDocTemplate = false;
 		
 		doesExist = (boolean) wikiBot.getPageInfo(pageName).get("exists");
 		if(!doesExist) {
@@ -446,17 +454,31 @@ public class GrandExchangeUpdater implements Runnable {
 				
 			}
 			
+			if(pageContent.contains("<noinclude>{{/doc}}</noinclude>")) {
+				hasDocTemplate = true;
+				pageContent = pageContent.replaceAll("\\<noinclude\\>\\{\\{\\/doc\\}\\}\\</noinclude\\>", "");
+			}
+			
 			pageContent = pageContent.replaceAll("\\n}}", ",");
 			
 		}
 		
-		String volume = volumes.getVolumeFor(price.getId());
+		if(price.getId() == null) {
+			volume = null;
+		} else {
+			volume = volumes.getVolumeFor(price.getId());
+		}
+		
 		if(volume == null) {
 			pageContent += price.getTimestamp() + ":" + price.getPrice() + "\n}}";
 		} else {
 			pageContent += price.getTimestamp() + ":" + price.getPrice() + ":" + volume  + "\n}}";
 		}
 		
+		if(hasDocTemplate) {
+			pageContent += "<noinclude>{{/doc}}</noinclude>";
+		}
+
 		wikiBot.edit(pageName, pageContent, "Updating price data");
 		
 		return new UpdateResult("", true);
@@ -539,7 +561,7 @@ public class GrandExchangeUpdater implements Runnable {
 		String volume = volumes.getVolumeFor(newPrice.getId());
 		if(volume != null) { // WE HAVE VOLUME DATA, WOO!
 			// since we don't need the data again, it is safe to just remove it
-			if(pageContent.indexOf("volumeDate") == -1) {
+			if(pageContent.indexOf("volumeDate") != -1) {
 				pageContent = pageContent.replaceAll("volume\\s*=.*\\n", "volume     = " + volume + ",\n");
 				pageContent = pageContent.replaceAll("volumeDate\\s*=.*\\n", "volumeDate = '~~~~~',\n");
 			} else {
@@ -558,8 +580,8 @@ public class GrandExchangeUpdater implements Runnable {
 		
 		//replaces Price/Date with the new date and pushes the old price down to the LastPrice/LastDate param 
 		// which we removed above.
-		pageContent = pageContent.replaceAll("price\\s*=", String.format("price      = %d,\n    last       = ", newPrice.getPrice()));
-		pageContent = pageContent.replaceAll(" date\\s*=", " date       = '~~~~~',\n    lastDate   = ");
+		pageContent = pageContent.replaceAll("price\\s*=", String.format("price      = %d,\n    last       =", newPrice.getPrice()));
+		pageContent = pageContent.replaceAll(" date\\s*=", " date       = '~~~~~',\n    lastDate   =");
 		
 		wikiBot.edit(pageName, pageContent, "Updating price");
 		
@@ -660,6 +682,68 @@ public class GrandExchangeUpdater implements Runnable {
 		return gePrice;
 	}
 	
+	private void updateTradeIndexData() {
+		String[] indexPages = {"Template:GE Common Trade Index", "Template:GE Discontinued Rare Index", 
+									"Template:GE Food Index", "Template:GE Herb Index",
+									"Template:GE Log Index", "Template:GE Metal Index", 
+									"Template:GE Rune Index"};
+		for(int i = 0; i < 3; i++) {
+			try {
+				wikiBot.purge(false, indexPages);
+				break;
+			} catch (IOException e) {
+				System.out.println("[ERROR] Unable to purge IndexPages due to IOException");
+			}
+		}
+		
+		String parsedContent;
+		String currentDayTimestamp = getTodaysEpochTimestamp();
+		GEPrice price = null;
+		
+		if(currentDayTimestamp == null) {
+			return;
+		}
+		
+		for(String page: indexPages) {
+			try {
+				parsedContent = wikiBot.parsePage(page);
+				// We are just interested in the number
+				parsedContent = parsedContent.substring(0, parsedContent.indexOf("<"));
+				System.out.println(currentDayTimestamp + ":" + parsedContent);
+				
+				price = new GEPrice(currentDayTimestamp, parsedContent);
+				
+				for(int i = 0; i < 3; i++) {
+					try {
+						addToLog(updateData(page + "/Data", price), page + "/Data");
+						break;
+					} catch (IOException e) {
+						System.out.println("[ERROR] Unable to update data on " + page );
+					} catch (LoginException e) {
+						System.out.println("[ERROR] Unable to login");
+					}
+				}
+				
+				
+			} catch (IOException e) {
+				System.out.println("[ERROR] Unable to update data on " + page );
+			}
+		}
+	}
+	
+    private String getTodaysEpochTimestamp() {
+		Date date = new Date();
+		SimpleDateFormat dateFormat = new SimpleDateFormat("MMMMM dd yyyy");
+        try {
+            date = dateFormat.parse(dateFormat.format(date));
+        }
+        catch (ParseException e) {
+            System.out.println("[ERROR] Invalid Date provided");
+            return null;
+        }
+		return "" + (date.getTime()/1000);
+	}
+	
 	public int getNumberOfPages() {
 		return numberOfPages;
 	}
@@ -670,6 +754,5 @@ public class GrandExchangeUpdater implements Runnable {
 	
 	protected void stopRunning() {
 		running = false;
-		
 	}
 }

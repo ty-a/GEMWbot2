@@ -1057,6 +1057,27 @@ public class Wiki implements Serializable
     }
 
     /**
+     *  Renders the specified page  by passing it to the MediaWiki
+     *  parser through the API. (Note: this isn't implemented locally because
+     *  I can't be stuffed porting Parser.php). One use of this method is to
+     *  emulate the previewing functionality of the MediaWiki software.
+     *
+     *  @param page the page to parse
+     *  @return the parsed markup as HTML
+     *  @throws IOException if a network error occurs
+     *  @since 0.30
+     */
+    public String parsePage(String page) throws IOException
+    {
+        // This is POST because markup can be arbitrarily large, as in the size
+        // of an article (over 10kb).
+        String response = post(apiUrl + "action=parse", "prop=text&page=" + URLEncoder.encode(page, "UTF-8"), "parse");
+        int y = response.indexOf('>', response.indexOf("<text")) + 1;
+        int z = response.indexOf("</text>");
+        return decode(response.substring(y, z));
+    }
+    
+    /**
      *  Renders the specified wiki markup by passing it to the MediaWiki
      *  parser through the API. (Note: this isn't implemented locally because
      *  I can't be stuffed porting Parser.php). One use of this method is to
