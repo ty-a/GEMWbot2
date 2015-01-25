@@ -128,7 +128,7 @@ public class GrandExchangeUpdater implements Runnable {
 		running = true;
 		
 		try {
-			Start();			
+			Start();
 		}
 		catch(Exception err) {
 			System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
@@ -186,6 +186,7 @@ public class GrandExchangeUpdater implements Runnable {
 				numberOfPagesUpdated++;
 				if(pages[i].contains("/Data")) // we update /Data pages as part of updating the main page
 					continue;
+				
 				addToLog(doUpdates(pages[i]), pages[i]);
 			
 				try {
@@ -391,7 +392,7 @@ public class GrandExchangeUpdater implements Runnable {
 		
 		//replaces Price/Date with the new date and pushes the old price down to the LastPrice/LastDate param 
 		// which we removed above.
-		pageContent = pageContent.replaceAll("\\|Price=", String.format("|Price=%,d\n|Last=", newPrice.getPrice()));
+		pageContent = pageContent.replaceAll("\\|Price=", String.format("|Price=%,d\n|Last=", Integer.parseInt(newPrice.getPrice())));
 		
 		pageContent = pageContent.replaceAll("\\|Date=", "|Date=~~~~~\n|LastDate=");
 		
@@ -450,7 +451,7 @@ public class GrandExchangeUpdater implements Runnable {
 			// If there is no volume, it will say null
 			if(pageContent.length() == 0) {
 				return new UpdateResult("page is empty; " + price.getTimestamp() + ":" + price.getPrice() 
-						+ volumes.getVolumeFor(price.getId()), false);
+						+ ((price.getId() != null) ? volumes.getVolumeFor(price.getId()) : ""), false);
 				
 			}
 			
@@ -580,7 +581,7 @@ public class GrandExchangeUpdater implements Runnable {
 		
 		//replaces Price/Date with the new date and pushes the old price down to the LastPrice/LastDate param 
 		// which we removed above.
-		pageContent = pageContent.replaceAll("price\\s*=", String.format("price      = %d,\n    last       =", newPrice.getPrice()));
+		pageContent = pageContent.replaceAll("price\\s*=", String.format("price      = %d,\n    last       =", Integer.parseInt(newPrice.getPrice())));
 		pageContent = pageContent.replaceAll(" date\\s*=", " date       = '~~~~~',\n    lastDate   =");
 		
 		wikiBot.edit(pageName, pageContent, "Updating price");
@@ -591,6 +592,7 @@ public class GrandExchangeUpdater implements Runnable {
 	
 	private UpdateResult updateModuleData(String pageName, GEPrice price) throws LoginException, IOException {
 		String pageContent;
+		String volume;
 		boolean doesExist;
 		
 		doesExist = (boolean) wikiBot.getPageInfo(pageName).get("exists");
@@ -603,7 +605,7 @@ public class GrandExchangeUpdater implements Runnable {
 			// If there is no volume, it will say null
 			if(pageContent.length() == 0) {
 				return new UpdateResult("page is empty; " + price.getTimestamp() + ":" + price.getPrice() 
-						+ volumes.getVolumeFor(price.getId()), false);
+						+ ((price.getId() != null) ? volumes.getVolumeFor(price.getId()) : ""), false);
 				
 			}
 			
@@ -611,7 +613,12 @@ public class GrandExchangeUpdater implements Runnable {
 			
 		}
 		
-		String volume = volumes.getVolumeFor(price.getId());
+		if(price.getId() == null) {
+			volume = null;
+		} else {
+			volume = volumes.getVolumeFor(price.getId());
+		}
+		
 		if(volume == null) {
 			pageContent += "    '" + price.getTimestamp() + ":" + price.getPrice() + "'\n}";
 		} else {
@@ -683,10 +690,12 @@ public class GrandExchangeUpdater implements Runnable {
 	}
 	
 	private void updateTradeIndexData() {
-		String[] indexPages = {"Template:GE Common Trade Index", "Template:GE Discontinued Rare Index", 
-									"Template:GE Food Index", "Template:GE Herb Index",
-									"Template:GE Log Index", "Template:GE Metal Index", 
-									"Template:GE Rune Index"};
+		String parsedContent;
+
+		String[] indexPages = {"GE Common Trade Index", "GE Discontinued Rare Index", 
+									"GE Food Index", "GE Herb Index",
+									"GE Log Index", "GE Metal Index", 
+									"GE Rune Index"};
 		for(int i = 0; i < 3; i++) {
 			try {
 				wikiBot.purge(false, indexPages);
@@ -696,52 +705,76 @@ public class GrandExchangeUpdater implements Runnable {
 			}
 		}
 		
-		String parsedContent;
 		String currentDayTimestamp = getTodaysEpochTimestamp();
-		GEPrice price = null;
+		
 		
 		if(currentDayTimestamp == null) {
 			return;
 		}
 		
 		for(String page: indexPages) {
+			// Only exists in template namespace
 			try {
-				parsedContent = wikiBot.parsePage(page);
-				// We are just interested in the number
-				parsedContent = parsedContent.substring(0, parsedContent.indexOf("<"));
-				System.out.println(currentDayTimestamp + ":" + parsedContent);
-				
-				price = new GEPrice(currentDayTimestamp, parsedContent);
-				
-				for(int i = 0; i < 3; i++) {
-					try {
-						addToLog(updateData(page + "/Data", price), page + "/Data");
-						break;
-					} catch (IOException e) {
-						System.out.println("[ERROR] Unable to update data on " + page );
-					} catch (LoginException e) {
-						System.out.println("[ERROR] Unable to login");
-					}
-				}
-				
-				
+				parsedContent = wikiBot.parsePage("Template:" + page);
 			} catch (IOException e) {
 				System.out.println("[ERROR] Unable to update data on " + page );
+				continue;
+			}
+			
+			// We are just interested in the number
+			parsedContent = parsedContent.substring(0, parsedContent.indexOf("<"));
+			
+			// 0 = exchange, 1 = module, 2 = both)
+			if(runningMode == 0) {
+				doTradeIndexUpdate("Template:" + page, currentDayTimestamp, parsedContent);
+			}
+			else if (runningMode == 1) {
+				doTradeIndexUpdate("Module:Exchange/" + page, currentDayTimestamp, parsedContent);
+			}
+			else {
+				doTradeIndexUpdate("Template:" + page, currentDayTimestamp, parsedContent);
+				doTradeIndexUpdate("Module:Exchange/" + page, currentDayTimestamp, parsedContent);
+			}
+		}
+	}
+	
+	private void doTradeIndexUpdate(String page, String currentDayTimestamp, String parsedContent) {
+		GEPrice price = null;
+		System.out.println(page);
+		
+		price = new GEPrice(currentDayTimestamp, parsedContent);
+		
+		for(int i = 0; i < 3; i++) {
+			try {
+				if(page.indexOf("Module:Exchange/") == -1) {
+					addToLog(updateData(page + "/Data", price), page + "/Data");
+					break;
+				} else {
+					addToLog(updateModuleData(page + "/Data", price), page + "/Data");
+					break;
+				}
+			} catch (IOException e) {
+				System.out.println("[ERROR] Unable to update data on " + page );
+			} catch (LoginException e) {
+				System.out.println("[ERROR] Unable to login");
 			}
 		}
 	}
 	
     private String getTodaysEpochTimestamp() {
-		Date date = new Date();
-		SimpleDateFormat dateFormat = new SimpleDateFormat("MMMMM dd yyyy");
-        try {
-            date = dateFormat.parse(dateFormat.format(date));
-        }
-        catch (ParseException e) {
-            System.out.println("[ERROR] Invalid Date provided");
-            return null;
-        }
-		return "" + (date.getTime()/1000);
+    	
+		try {
+			GEPrice price;
+			// 245 is the itemID for Wine of Zamorak
+			// The actual ID isn't important as long as it is a valid one
+			// because we just grab the timestamp off of it
+			price = loadCurPrice("245");
+			return price.getTimestamp();
+		} catch (MalformedURLException e) {
+			e.printStackTrace();
+			return null;
+		}
+    	
 	}
 	
 	public int getNumberOfPages() {
