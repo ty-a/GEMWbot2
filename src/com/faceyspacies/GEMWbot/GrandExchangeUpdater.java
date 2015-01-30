@@ -10,9 +10,6 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.regex.Matcher;
@@ -266,8 +263,8 @@ public class GrandExchangeUpdater implements Runnable {
 				case 1:
 					return updateModulePage(page);
 				case 2:
-					addToLog(updatePage(page), page);
-					return updateModulePage(page);
+					addToLog(updateModulePage(page), page);
+					return updatePage(page);
 				}
 			} catch (IOException e) {
 				failures++;
@@ -331,45 +328,48 @@ public class GrandExchangeUpdater implements Runnable {
 			return new UpdateResult("page is empty", false);
 		}
 		
-		Pattern itemIDregex = Pattern.compile("\\|ItemId=(\\d+)");
-		Matcher itemIDMatcher = itemIDregex.matcher(pageContent);
-		
-		if(itemIDMatcher.find()) {
-			itemID = itemIDMatcher.group(1);
-		} else {
-			System.out.println("[ERROR] unable to load item id");
-			return new UpdateResult("unable to load item id", false);
+		if(runningMode == 1) { // Just updating exchange pages
+			
+			Pattern itemIDregex = Pattern.compile("\\|ItemId=(\\d+)");
+			Matcher itemIDMatcher = itemIDregex.matcher(pageContent);
+			
+			if(itemIDMatcher.find()) {
+				itemID = itemIDMatcher.group(1);
+			} else {
+				System.out.println("[ERROR] unable to load item id");
+				return new UpdateResult("unable to load item id", false);
 
-		}
-		
-		for(int i = 0; i < 3; i++) {
-			try {
-				newPrice = loadCurPrice(itemID);
-			} catch (MalformedURLException e) {
-				System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
-				return new UpdateResult("item id is invalid", false);
 			}
 			
-			if(newPrice == null) {
+			for(int i = 0; i < 3; i++) {
 				try {
-					Thread.sleep(3000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					newPrice = loadCurPrice(itemID);
+				} catch (MalformedURLException e) {
+					System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
+					return new UpdateResult("item id is invalid", false);
 				}
 				
-				newPrice = loadCurPrice(itemID);
-			} else {
-				break;
+				if(newPrice == null) {
+					try {
+						Thread.sleep(3000);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					
+					newPrice = loadCurPrice(itemID);
+				} else {
+					break;
+				}
 			}
+			
+			// if after three tries we still cannot get a price, give up 
+			if(newPrice == null)
+				return new UpdateResult("unable to fetch price", false);
+		} else {
+			// this.price was set by updateModulePage
+			newPrice = this.price;
 		}
-		
-		// if after three tries we still cannot get a price, give up 
-		if(newPrice == null)
-			return new UpdateResult("unable to fetch price", false);
-		
-		if(runningMode == 2) // so we don't have to refetch it and worry about the rate limit
-			this.price = newPrice;
 		
 		String volume = volumes.getVolumeFor(newPrice.getId());
 		if(volume != null) { // WE HAVE VOLUME DATA, WOO!
@@ -530,31 +530,31 @@ public class GrandExchangeUpdater implements Runnable {
 			return new UpdateResult("unable to load item id", false);
 		}
 		
-		if(runningMode == 2) {
-			newPrice = price;
-		} else {
-			for(int i = 0; i < 3; i++) {
+		for(int i = 0; i < 3; i++) {
+			try {
+				newPrice = loadCurPrice(itemID);
+			} catch (MalformedURLException e) {
+				System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
+				return new UpdateResult("item id is invalid", false);
+			}
+			
+			if(newPrice == null) {
 				try {
-					newPrice = loadCurPrice(itemID);
-				} catch (MalformedURLException e) {
-					System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
-					return new UpdateResult("item id is invalid", false);
+					Thread.sleep(3000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
 				
-				if(newPrice == null) {
-					try {
-						Thread.sleep(3000);
-					} catch (InterruptedException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-					
-					newPrice = loadCurPrice(itemID);
-				} else {
-					break;
-				}
+				newPrice = loadCurPrice(itemID);
+			} else {
+				break;
 			}
 		}
+		
+		if(runningMode == 2) // so we don't have to refetch it and worry about the rate limit
+			this.price = newPrice;
+		
 		// if after three tries we still cannot get a price, give up 
 		if(newPrice == null)
 			return new UpdateResult("unable to fetch price", false);
@@ -729,11 +729,11 @@ public class GrandExchangeUpdater implements Runnable {
 				doTradeIndexUpdate("Template:" + page, currentDayTimestamp, parsedContent);
 			}
 			else if (runningMode == 1) {
-				doTradeIndexUpdate("Module:Exchange/" + page, currentDayTimestamp, parsedContent);
+				doTradeIndexUpdate("Module:Exchange/" + page.replaceAll("GE ",  ""), currentDayTimestamp, parsedContent);
 			}
 			else {
 				doTradeIndexUpdate("Template:" + page, currentDayTimestamp, parsedContent);
-				doTradeIndexUpdate("Module:Exchange/" + page, currentDayTimestamp, parsedContent);
+				doTradeIndexUpdate("Module:Exchange/" + page.replaceAll("GE ",  ""), currentDayTimestamp, parsedContent);
 			}
 		}
 	}
