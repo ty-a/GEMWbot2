@@ -32,7 +32,8 @@ public class GEMWbot implements IRCEventListener
 	protected String ircChannel;
 	private String nickServUser;
 	private String nickServPass;
-	protected Boolean enableTieBot;
+	protected boolean enableTieBot;
+	protected boolean enableTieBotNewUsers;
 	private Session rcSession;
 	private TieBot tieBotInstance;
 	
@@ -52,6 +53,7 @@ public class GEMWbot implements IRCEventListener
 		if(enableTieBot) {
 			createTieBotInstance();
 		}
+		
 	}
  
 	private void loadIRCsettings() {
@@ -76,6 +78,12 @@ public class GEMWbot implements IRCEventListener
 				enableTieBot = false;
 			else
 				enableTieBot = temp.equals("true") ? true : false;
+			
+			temp = ircSettings.getProperty("enableNewUsers");
+			if(temp == null) 
+				enableTieBotNewUsers = false;
+			else
+				enableTieBotNewUsers = temp.equals("true") ? true : false;
 			
 			if(ircNick == null) {
 				System.out.println("[ERROR] ircNick is missing from irc.properties; closing");
@@ -174,6 +182,9 @@ public class GEMWbot implements IRCEventListener
 			}
 			if(eventCode == 396) {
 				e.getSession().join(ircChannel);
+				if(enableTieBotNewUsers) {
+					e.getSession().join("#cvn-wikia-newusers");
+				}
 			}
 		}
 	}
@@ -230,6 +241,10 @@ public class GEMWbot implements IRCEventListener
 				
 			case "test":
 				channel.say(me.getNick() + ": Hai <3!");
+				break;
+				
+			case "log":
+				channel.say(me.getNick() + ": http://runescape.wikia.com/wiki/User:TyBot/log");
 				break;
 				
 			case "update":
@@ -290,21 +305,30 @@ public class GEMWbot implements IRCEventListener
 					try {
 						String mode = fullCommand.split(" ")[1].toLowerCase();
 						boolean on;
-						if(mode.equalsIgnoreCase("on"))
+						if(mode.equalsIgnoreCase("on")) {
 							on = true;
-						else if(mode.equalsIgnoreCase("off"))
+							enableTieBot = true;
+						} else if(mode.equalsIgnoreCase("off")) {
 							on = false;
-						else {
+							enableTieBot = false;
+						} else {
 							channel.say(me.getNick() + ": Invalid syntax. Use ~tiebot on/off");
 							return;
 						}
 						
 						if(on) {
-							if(tieBotInstance != null) {
+							// if we have an instance and we already have it set to read wiki discussions
+							if( tieBotInstance != null && tieBotInstance.getWikiDiscussionsFeed() ){
 								channel.say(me.getNick() + ": TieBot is already running!");
+								return;
+							// if we have an instance, but the wiki discussions isn't running start it
+							} else if(tieBotInstance != null) {
+								channel.say(me.getNick() + ": Starting TieBot!");
+								tieBotInstance.setWikiDiscussionsFeed(true);
 								return;
 							}
 							
+							// no instance
 							createTieBotInstance();
 							channel.say(me.getNick() + ": Starting TieBot!");
 						} else { // stop running
@@ -313,9 +337,17 @@ public class GEMWbot implements IRCEventListener
 								return;
 							}
 							
+							// mark as off
 							channel.say(me.getNick() + ": Stopping TieBot!");
-							rcSession.close("Requested by " + me.getNick());
-							tieBotInstance = null;
+							tieBotInstance.setWikiDiscussionsFeed(false);
+							
+							// If neither mode is running, just quit
+							if(!tieBotInstance.getWikiDiscussionsFeed() && !tieBotInstance.getNewUsersFeed()) {
+								rcSession.close("Requested by " + me.getNick());
+								tieBotInstance = null;
+								return;
+							}
+
 						}
 					} catch (IndexOutOfBoundsException err) {
 						channel.say(me.getNick() + ": Invalid syntax. Use ~tiebot on/off!");
@@ -323,6 +355,67 @@ public class GEMWbot implements IRCEventListener
 					}
 				} else {
 					session.sayPrivate(me.getNick(),  "You are not allowed to use the ~tiebot command");
+				}
+				break;
+				
+			case "newusers":
+				if(isAdmin) {
+					try {
+						String mode = fullCommand.split(" ")[1].toLowerCase();
+						boolean on;
+						if(mode.equalsIgnoreCase("on")) {
+							on = true;
+							enableTieBotNewUsers = true;
+						} else if(mode.equalsIgnoreCase("off")) {
+							on = false;
+							enableTieBotNewUsers = false;
+						} else {
+							channel.say(me.getNick() + ": Invalid syntax. Use ~newusers on/off");
+							return;
+						}
+						
+						if(on) {
+							// if we have an instance and we already have it set to read wiki discussions
+							if( tieBotInstance != null && tieBotInstance.getNewUsersFeed() ){
+								channel.say(me.getNick() + ": NewUsers is already running!");
+								return;
+							// if we have an instance, but the new users isn't running; start it
+							} else if(tieBotInstance != null) {
+								me.getSession().join("#cvn-wikia-newusers");
+								channel.say(me.getNick() + ": Starting new users feed!");
+								tieBotInstance.setNewUsersFeed(true);
+								return;
+							}
+							
+							// no instance
+							me.getSession().join("#cvn-wikia-newusers");
+							createTieBotInstance();
+							channel.say(me.getNick() + ": Starting new users feed!");
+						} else { // stop running
+							if(tieBotInstance == null) {
+								channel.say(me.getNick() + ": new users feed isn't running!");
+								return;
+							}
+							
+							// mark as off
+							channel.say(me.getNick() + ": Stopping new users feed!");
+							tieBotInstance.setNewUsersFeed(false);
+							me.getSession().getChannel("#cvn-wikia-newusers").part("Requested by " + me.getNick());
+							
+							// If neither mode is running, just quit
+							if(!tieBotInstance.getWikiDiscussionsFeed() && !tieBotInstance.getNewUsersFeed()) {
+								rcSession.close("Requested by " + me.getNick());
+								tieBotInstance = null;
+								return;
+							}
+
+						}
+					} catch (IndexOutOfBoundsException err) {
+						channel.say(me.getNick() + ": Invalid syntax. Use ~newusers on/off!");
+						return;
+					}
+				} else {
+					session.sayPrivate(me.getNick(),  "You are not allowed to use the ~newusers command");
 				}
 				break;
 				
@@ -439,5 +532,8 @@ public class GEMWbot implements IRCEventListener
 		rcSession = manager.requestConnection("feedNetwork", /*feedPort*/6667);
 		tieBotInstance = new TieBot(manager, this);
 		rcSession.addIRCEventListener(tieBotInstance);
+		
+		tieBotInstance.setNewUsersFeed(enableTieBotNewUsers);
+		tieBotInstance.setWikiDiscussionsFeed(enableTieBot);
 	}
 }

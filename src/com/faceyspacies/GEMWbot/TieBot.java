@@ -15,6 +15,10 @@ import jerklib.events.MessageEvent;
 public class TieBot implements jerklib.listeners.IRCEventListener {
 	private ConnectionManager manager;
 	private GEMWbot mainIRC;
+	
+	private boolean newUsersFeed;
+	private boolean wikiDiscussionsFeed;
+	
 	private Wiki wiki = new Wiki("runescape.wikia.com", "");
 	
 	public TieBot(ConnectionManager manager, GEMWbot main) {
@@ -39,8 +43,38 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		// We are only interested in the feed, not other things
 		if(!e.getNick().equals("rcbot"))
 			return;
+		
 		// regex is from  http://stackoverflow.com/questions/970545/how-to-strip-color-codes-used-by-mirc-users/970723
 		String message = e.getMessage().replaceAll("\\x1f|\\x02|\\x12|\\x0f|\\x16|\\x03(?:\\d{1,2}(?:,\\d{1,2})?)?", "");
+		
+		if(newUsersFeed) {
+			if(message.indexOf("Log/newusers]] create http://") != -1) {
+				processNewUserMessage(e.getMessage());
+				return; // if a new user, it isn't a discussion
+				
+			}
+		}
+		
+		if(wikiDiscussionsFeed) {
+			processWikiDiscussions(message);
+		}
+		
+	}
+	
+	private void processNewUserMessage(String message) {
+		
+		Session mainSession = manager.getSession("irc.freenode.net");
+		Channel channel = mainSession.getChannel("#cvn-wikia-newusers");
+		//Channel channel = mainSession.getChannel("#tybot");
+		if(channel == null) {
+			System.out.println("channel is null");
+			return;
+		}
+		channel.say(message);
+	}
+	
+	private void processWikiDiscussions(String message) {
+		
 		String wiki;
 		String page;
 		String summary;
@@ -72,7 +106,6 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				return;
 			channel.say(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
 		}
-		
 	}
 	
 	private String processWikiUrl(String fullWikiUrl) {
@@ -144,5 +177,21 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			// I'm willing to just assume it isn't a bot
 			return false;
 		}
+	}
+	
+	protected void setNewUsersFeed(boolean newMode) {
+		newUsersFeed = newMode;
+	}
+	
+	protected boolean getNewUsersFeed() {
+		return newUsersFeed;
+	}
+	
+	protected void setWikiDiscussionsFeed(boolean newMode) {
+		wikiDiscussionsFeed = newMode;
+	}
+	
+	protected boolean getWikiDiscussionsFeed() {
+		return wikiDiscussionsFeed;
 	}
 }

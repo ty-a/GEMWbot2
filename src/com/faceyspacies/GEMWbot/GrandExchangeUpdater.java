@@ -65,7 +65,7 @@ public class GrandExchangeUpdater implements Runnable {
 		wikiBot.setUsingCompressedRequests(false); // Wikia fails anywhere from 20-50 times a run on this
 		errorLog = "";
 		
-		runningMode = 2; // 0 = exchange, 1 = module, 2 = both
+		runningMode = 1; // 0 = exchange, 1 = module, 2 = both
 		
 		price = null;
 		
@@ -150,7 +150,7 @@ public class GrandExchangeUpdater implements Runnable {
 		}
 		
 		String[] pages;
-		
+		/*
 		switch(runningMode) {
 		case 0: // template
 			pages = getPages(wikiBot);
@@ -168,10 +168,17 @@ public class GrandExchangeUpdater implements Runnable {
 			}
 			pages = newPages;
 		}
-
+		*/
+		// Temp until figure out why it stops
+		pages = getPages(wikiBot);
+		for(int i = 0; i < pages.length; i++ ) {
+			pages[i] = pages[i].replace("Exchange:", "");
+		}
+		/*
 		if(pages == null) { // abort, message was sent in function
 			return;
 		}
+		*/
 		
 		numberOfPages = pages.length;
 		numberOfPagesUpdated = 0;
