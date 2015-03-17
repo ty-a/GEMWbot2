@@ -191,7 +191,7 @@ public class GEMWbot implements IRCEventListener
 	
 	private void commandHandler(MessageEvent me) {
 		Session session = manager.getSession(ircServer);
-		Channel channel = session.getChannel(ircChannel);
+		Channel channel = me.getChannel();
 		String command = "";
 		String fullCommand = me.getMessage();
 		boolean isMod;
@@ -421,10 +421,10 @@ public class GEMWbot implements IRCEventListener
 				
 			case "status":
 				if(updateTask == null) {
-					channel.say(me.getNick() + ": The GE Updater is not running!");
+					channel.say(me.getNick() + ": The GE Updater is not running! TieBot: " + (enableTieBot? "on": "off") + " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off"));
 					break;
 				}
-				channel.say(me.getNick() + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages());
+				channel.say(me.getNick() + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() + "! TieBot: " + (enableTieBot? "on": "off") + " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off"));
 				break;
 			
 			case "allowed":
