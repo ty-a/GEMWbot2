@@ -19,11 +19,20 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	private boolean newUsersFeed;
 	private boolean wikiDiscussionsFeed;
 	
+	private boolean isHushed;
+	
+	private long hushTime;
+	
+	private int ignoreThreshold;
+	
 	private Wiki wiki = new Wiki("runescape.wikia.com", "");
 	
-	public TieBot(ConnectionManager manager, GEMWbot main) {
+	public TieBot(ConnectionManager manager, GEMWbot main, int ignoreThreshold) {
 		this.manager = manager;
 		this.mainIRC = main;
+		this.ignoreThreshold = ignoreThreshold;
+		
+		isHushed = false;
 	}
 
 	@Override
@@ -80,6 +89,17 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		String summary;
 		String user;
 		String fullWikiUrl;
+		String count;
+		
+		if(isHushed) {
+			if(System.currentTimeMillis() > hushTime) {
+				isHushed = false;
+			} else {
+				return;
+			}
+		}
+		
+		
 		
 		page = message.substring(2, message.indexOf("]]"));
 		
@@ -98,6 +118,12 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		int nameEnd = message.indexOf(" * ", nameStart);
 		user = message.substring(nameStart, nameEnd);
 		summary = message.substring(nameEnd + 3);
+		
+		count = summary.substring(2, summary.indexOf(")"));
+		
+		if(Integer.parseInt(count) < ignoreThreshold ) {
+			return;
+		}
 		
 		if(!isBotUser(user)) {
 			Session mainSession = manager.getSession("irc.freenode.net");
@@ -193,5 +219,18 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	
 	protected boolean getWikiDiscussionsFeed() {
 		return wikiDiscussionsFeed;
+	}
+	
+	protected void hush(long hushTime) {
+		isHushed = true;
+		this.hushTime = hushTime;
+	}
+	
+	protected void unhush() {
+		isHushed = false;
+	}
+	
+	protected void setThreshold(int newThreshold) {
+		ignoreThreshold = newThreshold;
 	}
 }

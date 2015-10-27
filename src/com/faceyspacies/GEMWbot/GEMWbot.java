@@ -38,6 +38,8 @@ public class GEMWbot implements IRCEventListener
 	private TieBot tieBotInstance;
 	
 	private GrandExchangeUpdater updateTask;
+
+	private String ignoreThreshold;
  
 	public GEMWbot()
 	{
@@ -73,6 +75,7 @@ public class GEMWbot implements IRCEventListener
 			ircChannel = ircSettings.getProperty("ircChannel");
 			nickServUser = ircSettings.getProperty("nickServUser");
 			nickServPass = ircSettings.getProperty("nickServPass");
+			ignoreThreshold = ircSettings.getProperty("ignoreThreshold");
 			String temp = ircSettings.getProperty("enableTieBot");
 			if(temp == null) 
 				enableTieBot = false;
@@ -120,6 +123,10 @@ public class GEMWbot implements IRCEventListener
 				System.exit(0);
 			}
 			
+			if(ignoreThreshold == null) {
+				ignoreThreshold = "22";
+			}
+			
 		}
 		catch (FileNotFoundException err) {
 			System.out.println("[ERROR] Unable to load irc.properties file; closing");
@@ -148,9 +155,13 @@ public class GEMWbot implements IRCEventListener
 
 				Channel channel = e.getSession().getChannel(ircChannel);
 				channel.say("Starting GE Updates!");
-				updateTask = new GrandExchangeUpdater(this);
-				Thread thread = new Thread(updateTask);
-				thread.start();
+				try {
+					updateTask = new GrandExchangeUpdater(this);
+					Thread thread = new Thread(updateTask);
+					thread.start();
+				} catch (Exception err) {
+					channel.say("Failed to start GE Updater.");
+				}
 			}
 			
 			if(me.getMessage().charAt(0) == '~') { // we have a command as ~ is our trigger
@@ -161,7 +172,6 @@ public class GEMWbot implements IRCEventListener
 			}
 		}
 		else if(e.getType() == Type.DEFAULT){
-			
 			if(e.getRawEventData().substring(0, 4).equalsIgnoreCase("PING")) {
 				return;
 			}
@@ -213,6 +223,7 @@ public class GEMWbot implements IRCEventListener
 			isMod = isMod(me.getHostName());
 			
 		switch(command.toLowerCase()) {
+			case "adie":
 			case "die":
 				if(isAdmin) {
 					manager.quit("Requested");
@@ -254,9 +265,13 @@ public class GEMWbot implements IRCEventListener
 				}
 				if(isMod) {
 					channel.say(me.getNick() + ": Starting GE Updates!");
-					updateTask = new GrandExchangeUpdater(this);
-					Thread thread = new Thread(updateTask);
-					thread.start();
+					try {
+						updateTask = new GrandExchangeUpdater(this);
+						Thread thread = new Thread(updateTask);
+						thread.start();
+					} catch (Exception err) {
+						channel.say("Failed to start GE Updater.");
+					}
 				} else {
 					session.sayPrivate(me.getNick(), "You are not allowed to use the ~update command.");
 				}
@@ -419,6 +434,30 @@ public class GEMWbot implements IRCEventListener
 				}
 				break;
 				
+			case "hush":
+				if(tieBotInstance == null) {
+					channel.say(me.getNick() + ": TieBot isn't running!");
+					return;
+				} else {
+					String time = fullCommand.split(" ")[1];
+					long hushTime = System.currentTimeMillis() + (Integer.parseInt(time) * 60000);
+					tieBotInstance.hush(hushTime);
+					
+					channel.say(me.getNick() + ": Hushing for " + time + " mins!");
+				}
+				break;
+				
+			case "unhush":
+					if(tieBotInstance == null) {
+						channel.say(me.getNick() + ": TieBot is not running!");
+						return;
+					} else {
+						tieBotInstance.unhush();
+						channel.say(me.getNick() + ": No longer hushed!");
+					}
+					break;
+			
+			case "astatus":
 			case "status":
 				if(updateTask == null) {
 					channel.say(me.getNick() + ": The GE Updater is not running! TieBot: " + (enableTieBot? "on": "off") + " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off"));
@@ -530,7 +569,7 @@ public class GEMWbot implements IRCEventListener
 	
 	private void createTieBotInstance() {
 		rcSession = manager.requestConnection("feedNetwork", /*feedPort*/6667);
-		tieBotInstance = new TieBot(manager, this);
+		tieBotInstance = new TieBot(manager, this, Integer.parseInt(ignoreThreshold));
 		rcSession.addIRCEventListener(tieBotInstance);
 		
 		tieBotInstance.setNewUsersFeed(enableTieBotNewUsers);
