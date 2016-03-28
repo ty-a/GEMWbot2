@@ -1,6 +1,10 @@
 package com.faceyspacies.GEMWbot;
 
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 
 import org.wikipedia.Wiki;
 import org.wikipedia.Wiki.User;
@@ -27,12 +31,26 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	
 	private Wiki wiki = new Wiki("runescape.wikia.com", "");
 	
+	private Connection db;
+	private PreparedStatement query;
+	
 	public TieBot(ConnectionManager manager, GEMWbot main, int ignoreThreshold) {
 		this.manager = manager;
 		this.mainIRC = main;
 		this.ignoreThreshold = ignoreThreshold;
 		
 		isHushed = false;
+		
+		try {
+			// TODO: REMOVE HARD CODED CREDENTIALS 
+			db = DriverManager.getConnection("jdbc:mysql://localhost/users?useUnicode=true&characterEncoding=UTF-8", "username", "password");
+			query = db.prepareStatement("INSERT INTO users(name, wiki) VALUES (?,?);");
+			System.out.println("Created DB handler");
+			
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
 	}
 
 	@Override
@@ -55,7 +73,6 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		
 		// regex is from  http://stackoverflow.com/questions/970545/how-to-strip-color-codes-used-by-mirc-users/970723
 		String message = e.getMessage().replaceAll("\\x1f|\\x02|\\x12|\\x0f|\\x16|\\x03(?:\\d{1,2}(?:,\\d{1,2})?)?", "");
-		
 		if(newUsersFeed) {
 			if(message.indexOf("Log/newusers]] create http://") != -1) {
 				processNewUserMessage(e.getMessage());
@@ -71,6 +88,24 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	}
 	
 	private void processNewUserMessage(String message) {
+		// [[Especial:Log/newusers]] create http://es.dofuswiki.wikia.com/wiki/Especial:Log/newusers * Juan157 *  New user account
+		String noColorsMessage = message.replaceAll("\\x1f|\\x02|\\x12|\\x0f|\\x16|\\x03(?:\\d{1,2}(?:,\\d{1,2})?)?", "");
+		String wiki = noColorsMessage.substring(noColorsMessage.indexOf("http://") + 7, noColorsMessage.indexOf(".wikia"));
+
+		int nameStart = noColorsMessage.indexOf(" * ") + 3;
+		int nameEnd = noColorsMessage.indexOf(" * ", nameStart);
+		String user = noColorsMessage.substring(nameStart, nameEnd);
+		
+		if(db != null && query != null) {	
+			try {
+				query.setString(1, user);
+				query.setString(2, wiki);
+				
+				query.execute();
+			} catch (SQLException e) {
+				System.out.printf("Unable to add %s@%s to the DB!%n", user, wiki);
+			}
+		}
 		
 		Session mainSession = manager.getSession("irc.freenode.net");
 		Channel channel = mainSession.getChannel("#cvn-wikia-newusers");
@@ -121,7 +156,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		
 		count = summary.substring(2, summary.indexOf(")"));
 		
-		if(Integer.parseInt(count) < ignoreThreshold ) {
+		if(Integer.parseInt(count) < ignoreThreshold && !page.equals("RuneScape:Counter-Vandalism Unit") ) { // always show CVU edits
 			return;
 		}
 		
@@ -232,5 +267,17 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	
 	protected void setThreshold(int newThreshold) {
 		ignoreThreshold = newThreshold;
+	}
+	
+	protected void cleanupBeforeQuit() {
+		try {
+			if(db != null) {
+				db.close();
+			}
+			
+			if(query != null) {
+				query.close();
+			}
+		} catch (SQLException e) { }
 	}
 }

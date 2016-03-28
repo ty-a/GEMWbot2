@@ -36,6 +36,7 @@ public class GEMWbot implements IRCEventListener
 	protected boolean enableTieBotNewUsers;
 	private Session rcSession;
 	private TieBot tieBotInstance;
+	private UpdateChecker checker;
 	
 	private GrandExchangeUpdater updateTask;
 
@@ -151,14 +152,18 @@ public class GEMWbot implements IRCEventListener
 			MessageEvent me = (MessageEvent) e;
 			
 			if(me.getMessage().contains("The Grand Exchange has been updated. RuneScript last detected an update") && 
-					me.getHostName().endsWith(".bot.rscript.org")) {
+					me.getNick().contains("RuneScript")) {
 
 				Channel channel = e.getSession().getChannel(ircChannel);
 				channel.say("Starting GE Updates!");
 				try {
-					updateTask = new GrandExchangeUpdater(this);
-					Thread thread = new Thread(updateTask);
-					thread.start();
+					if(updateTask == null) {
+						updateTask = new GrandExchangeUpdater(this);
+						Thread thread = new Thread(updateTask);
+						thread.start();
+					} else {
+						channel.say("HALP! RUNESCRIPT DETECTED AN UPDATE WHILE I WAS ALREADY UPDATING; FREAKING OUT MAN");
+					}
 				} catch (Exception err) {
 					channel.say("Failed to start GE Updater.");
 				}
@@ -359,6 +364,7 @@ public class GEMWbot implements IRCEventListener
 							// If neither mode is running, just quit
 							if(!tieBotInstance.getWikiDiscussionsFeed() && !tieBotInstance.getNewUsersFeed()) {
 								rcSession.close("Requested by " + me.getNick());
+								tieBotInstance.cleanupBeforeQuit();
 								tieBotInstance = null;
 								return;
 							}
@@ -420,6 +426,7 @@ public class GEMWbot implements IRCEventListener
 							// If neither mode is running, just quit
 							if(!tieBotInstance.getWikiDiscussionsFeed() && !tieBotInstance.getNewUsersFeed()) {
 								rcSession.close("Requested by " + me.getNick());
+								tieBotInstance.cleanupBeforeQuit();
 								tieBotInstance = null;
 								return;
 							}
@@ -567,6 +574,33 @@ public class GEMWbot implements IRCEventListener
 		updateTask = null;
 	}
 	
+	protected void setCheckerToNull() {
+		checker = null;
+	}
+	
+	public void startChecker() {
+		if(checker == null) {
+			checker = new UpdateChecker(this);
+			Thread checkerThread = new Thread(checker);
+			checkerThread.start();
+		}
+	}
+	
+	public void startUpdater() {
+		if(updateTask == null) {
+			try {
+				updateTask = new GrandExchangeUpdater(this);
+				Thread updateThread = new Thread(updateTask);
+				updateThread.start();
+				manager.getSession(ircServer).getChannel(ircChannel).say("GE Update detected! Starting updates.... ");
+				checker = null;
+			} catch (Exception e) {
+				manager.getSession(ircServer).getChannel(ircChannel).say("Failed to start GE Updater!");
+			}
+			
+		}
+	}
+	
 	private void createTieBotInstance() {
 		rcSession = manager.requestConnection("feedNetwork", /*feedPort*/6667);
 		tieBotInstance = new TieBot(manager, this, Integer.parseInt(ignoreThreshold));
@@ -574,5 +608,13 @@ public class GEMWbot implements IRCEventListener
 		
 		tieBotInstance.setNewUsersFeed(enableTieBotNewUsers);
 		tieBotInstance.setWikiDiscussionsFeed(enableTieBot);
+	}
+	
+	public GrandExchangeUpdater getGEMWinstance() {
+		return updateTask;
+	}
+	
+	public TieBot getTieBotinstance() {
+		return tieBotInstance;
 	}
 }

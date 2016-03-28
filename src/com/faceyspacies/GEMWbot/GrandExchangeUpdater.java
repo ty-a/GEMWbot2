@@ -113,6 +113,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				if(failures == 3) {
 					return new UpdateResult("network failure; " + e.getClass() + " " +  e.getMessage(), false);
 				}
+				Login(); // If we are logged out, it will give us a IOException with HookAborted
 				
 			} catch (LoginException e) {
 				failures++;
@@ -276,6 +277,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				if(failures == 3) {
 					return new UpdateResult("network failure; " + e.getClass() + " " + e.getMessage(), false);
 				}
+				Login();
 				
 			} catch (LoginException e) {
 				failures++;
