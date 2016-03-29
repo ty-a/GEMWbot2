@@ -30,6 +30,7 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 	TellBot() {
 		try {
 			// TODO: REMOVE HARD CODED CREDENTIALS 
+			db = DriverManager.getConnection("jdbc:mysql://localhost/tells?useUnicode=true&characterEncoding=UTF-8", "username", "password");
 			
 			getTellCountQuery = db.prepareStatement("SELECT count(*) AS count FROM tells WHERE target = ?;");
 			getTellCountQueryWithSenders = db.prepareStatement("SELECT sender FROM tells WHERE target = ?;");
