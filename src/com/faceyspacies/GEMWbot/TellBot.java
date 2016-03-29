@@ -31,7 +31,7 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		try {
 			// TODO: REMOVE HARD CODED CREDENTIALS 
 			db = DriverManager.getConnection("jdbc:mysql://localhost/tells?useUnicode=true&characterEncoding=UTF-8", "username", "password");
-			
+			System.out.println("Created tells db handler");
 			getTellCountQuery = db.prepareStatement("SELECT count(*) AS count FROM tells WHERE target = ?;");
 			getTellCountQueryWithSenders = db.prepareStatement("SELECT sender FROM tells WHERE target = ?;");
 			getTellMessagesQuery = db.prepareStatement("SELECT message,sender,sent FROM tells WHERE target = ? OR target = ?;");
@@ -73,6 +73,7 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		if(me.getNick().equalsIgnoreCase("evilbot")) {
 			isEvilBotHere = true;
 		}
+		
 		Message[] messages = getMessageForUser(me.getNick(), me.getHostName());
 		if (messages != null) {
 			for(Message message: messages) {
@@ -127,7 +128,6 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 					break;
 				}
 			case "~tell":
-				// TODO: move check for tellcount to the addTell function
 				try {
 					addTell(me.getNick(), fullCommand.split(" ")[1], fullCommand.substring(fullCommand.indexOf(" ", 
 							fullCommand.indexOf(" ") + 1) + 1), me);
@@ -230,6 +230,9 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 				 }
 			}
 			rs.close();
+			if(count == 0) {
+				return user + " has no unread messages!";
+			}
 			
 			users = users.substring(0, users.length() - 2);
 			out = user + " has " + count + " unread message(s) from " + users;
@@ -282,8 +285,6 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 	
 	// Add a tell from nick to target with message
 	private void addTell(String nick, String target, String message, MessageEvent me) {
-		// TODO: Check tell count in here, possibly move the actually adding of tell
-		//         to keep code pretty
 		if(target.indexOf(";") != -1) {
 			// we have thing in the form of nick;nick;nick
 			String[] targets = target.split(";");
