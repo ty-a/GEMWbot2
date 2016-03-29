@@ -34,8 +34,11 @@ public class GEMWbot implements IRCEventListener
 	private String nickServPass;
 	protected boolean enableTieBot;
 	protected boolean enableTieBotNewUsers;
+	protected boolean enableTellBot;
+	private Session session;
 	private Session rcSession;
 	private TieBot tieBotInstance;
+	private TellBot tellBotInstance;
 	private UpdateChecker checker;
 	
 	private GrandExchangeUpdater updateTask;
@@ -51,14 +54,19 @@ public class GEMWbot implements IRCEventListener
 
 		manager = new ConnectionManager(new Profile(ircNick));
  
-		Session session = manager.requestConnection(ircServer); 
+		session = manager.requestConnection(ircServer); 
 		session.addIRCEventListener(this);
+		
+		if(enableTellBot) {
+			addTellBotCommands();
+		}
+		
 		if(enableTieBot) {
 			createTieBotInstance();
 		}
 		
 	}
- 
+
 	private void loadIRCsettings() {
 		Properties ircSettings = new Properties();
 		InputStream input = null;
@@ -88,6 +96,12 @@ public class GEMWbot implements IRCEventListener
 				enableTieBotNewUsers = false;
 			else
 				enableTieBotNewUsers = temp.equals("true") ? true : false;
+			
+			temp = ircSettings.getProperty("enableTellBot");
+			if(temp == null) 
+				enableTellBot = false;
+			else
+				enableTellBot = temp.equals("true") ? true : false;
 			
 			if(ircNick == null) {
 				System.out.println("[ERROR] ircNick is missing from irc.properties; closing");
@@ -150,7 +164,6 @@ public class GEMWbot implements IRCEventListener
 		else if (e.getType() == Type.CHANNEL_MESSAGE)
 		{
 			MessageEvent me = (MessageEvent) e;
-			
 			if(me.getMessage().contains("The Grand Exchange has been updated. RuneScript last detected an update") && 
 					me.getNick().contains("RuneScript")) {
 
@@ -472,6 +485,46 @@ public class GEMWbot implements IRCEventListener
 				}
 				channel.say(me.getNick() + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() + "! TieBot: " + (enableTieBot? "on": "off") + " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off"));
 				break;
+				
+			case "tellbot":
+				if(isMod) {
+					try {
+						String mode = fullCommand.split(" ")[1].toLowerCase();
+						boolean on;
+						if(mode.equalsIgnoreCase("on")) {
+							on = true;
+							enableTellBot = true;
+						} else if(mode.equalsIgnoreCase("off")) {
+							on = false;
+							enableTellBot = false;
+						} else {
+							channel.say(me.getNick() + ": Invalid syntax. Use ~tellbot on/off");
+							return;
+						}
+						
+						if(on) {
+							if(tellBotInstance != null) {
+								channel.say(me.getNick() + ": TellBot is already running!");
+							} else {
+								addTellBotCommands();
+							}
+						} else {
+							if(tellBotInstance == null) {
+								channel.say(me.getNick() + ": TellBot isn't running!");
+							} else {
+								channel.say(me.getNick() + ": Stopping TellBot!");
+								tellBotInstance.cleanupBeforeQuit();
+								session.removeIRCEventListener(tellBotInstance);
+								tellBotInstance = null;
+							}
+						}
+					} catch (IndexOutOfBoundsException e) {
+						channel.say(me.getNick() + ": Invalid syntax. Use ~tellbot on/off!");
+					}
+				} else {
+					channel.say(me.getNick() + ": You're not allowed to use the ~tellbot command");
+				}
+				break;
 			
 			case "allowed":
 				String hosts = "";
@@ -491,11 +544,7 @@ public class GEMWbot implements IRCEventListener
 				
 			case "source":
 				channel.say(me.getNick() + ": My source code is available at https://github.com/ty-a/GEMWbot2");
-				break;
-				
-			default:
-				System.out.println("[INFO] Unknown command " + command + " used by " + me.getNick() + "!");
-				
+				break;				
 		}
 	}
 	
@@ -616,5 +665,10 @@ public class GEMWbot implements IRCEventListener
 	
 	public TieBot getTieBotinstance() {
 		return tieBotInstance;
+	}
+	
+	private void addTellBotCommands() {
+		tellBotInstance = new TellBot();
+		session.addIRCEventListener(tellBotInstance);
 	}
 }
