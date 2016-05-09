@@ -288,7 +288,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			} catch (Exception e) {
 				failures++;
 				if(failures == 3) {
-					return new UpdateResult("unknown exception; " + e.getClass() + " " +  e.getMessage(), false);
+					return new UpdateResult("unknown exception; " + e.getClass() + "\n" +  e.getStackTrace(), false);
 				}
 			}
 		}

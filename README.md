@@ -8,6 +8,12 @@ This project contains code from other projects.
 * <a href="https://code.google.com/p/wiki-java/">Wiki-java</a>, which is licensed under GPL v3. This project's code is located in src/org/wikipedia
 * <a href="http://www.json.org/java/index.html">org.json</a>, which is licensed under the <a href="http://www.json.org/license.html">JSON license</a>. This project's code is located in src/org/json
 * <a href="http://jsoup.org">jsoup</a>, which is licensed under the MIT license. This project is retrieved using Mavern. 
+* <a href="https://github.com/austinv11/Discord4J">Discord4J</a> a java Discord library under GPL v2. It is loaded using Mavern.
 
 #### Configuration
- You can configure the IRC details in the irc.properties file and the Wiki details in the gemw.properties file.
+You can configure various settings in the 
+* gemw.properties
+* irc.properties
+* tiebot.properties
+* tellbot.properties
+* discord.properties

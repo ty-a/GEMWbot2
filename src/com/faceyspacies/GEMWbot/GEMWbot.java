@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
+import sx.blah.discord.util.DiscordException;
 import jerklib.Channel;
 import jerklib.ConnectionManager;
 import jerklib.Profile;
@@ -35,15 +36,15 @@ public class GEMWbot implements IRCEventListener
 	protected boolean enableTieBot;
 	protected boolean enableTieBotNewUsers;
 	protected boolean enableTellBot;
+	protected boolean enableDiscordBot;
 	private Session session;
 	private Session rcSession;
 	private TieBot tieBotInstance;
 	private TellBot tellBotInstance;
 	private UpdateChecker checker;
+	private DiscordBot discordBotInstance;
 	
 	private GrandExchangeUpdater updateTask;
-
-	private String ignoreThreshold;
  
 	public GEMWbot()
 	{
@@ -65,6 +66,10 @@ public class GEMWbot implements IRCEventListener
 			createTieBotInstance();
 		}
 		
+		if(enableDiscordBot) {
+			createDiscordBotInstance();
+		}
+		
 	}
 
 	private void loadIRCsettings() {
@@ -84,7 +89,6 @@ public class GEMWbot implements IRCEventListener
 			ircChannel = ircSettings.getProperty("ircChannel");
 			nickServUser = ircSettings.getProperty("nickServUser");
 			nickServPass = ircSettings.getProperty("nickServPass");
-			ignoreThreshold = ircSettings.getProperty("ignoreThreshold");
 			String temp = ircSettings.getProperty("enableTieBot");
 			if(temp == null) 
 				enableTieBot = false;
@@ -102,6 +106,12 @@ public class GEMWbot implements IRCEventListener
 				enableTellBot = false;
 			else
 				enableTellBot = temp.equals("true") ? true : false;
+			
+			temp = ircSettings.getProperty("enableDiscordBot");
+			if(temp == null) 
+				enableDiscordBot = false;
+			else
+				enableDiscordBot = temp.equals("true") ? true : false;
 			
 			if(ircNick == null) {
 				System.out.println("[ERROR] ircNick is missing from irc.properties; closing");
@@ -136,10 +146,6 @@ public class GEMWbot implements IRCEventListener
 			if (adminHosts == null) {
 				System.out.println("[ERROR] nickServPass is missing from irc.properties; closing");
 				System.exit(0);
-			}
-			
-			if(ignoreThreshold == null) {
-				ignoreThreshold = "22";
 			}
 			
 		}
@@ -249,6 +255,13 @@ public class GEMWbot implements IRCEventListener
 					if(updateTask != null) {
 						updateTask.stopRunning();
 					}
+					
+					if(discordBotInstance != null) {
+						discordBotInstance.quit();
+					}
+					
+					System.exit(0);
+					
 					
 				} else {
 					session.sayPrivate(me.getNick(), "You are not allowed to use the ~die command.");
@@ -480,10 +493,14 @@ public class GEMWbot implements IRCEventListener
 			case "astatus":
 			case "status":
 				if(updateTask == null) {
-					channel.say(me.getNick() + ": The GE Updater is not running! TieBot: " + (enableTieBot? "on": "off") + " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off"));
+					channel.say(me.getNick() + ": The GE Updater is not running! TieBot: " + (enableTieBot? "on": "off") 
+							+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
+							+ (enableDiscordBot? "on": "off") );
 					break;
 				}
-				channel.say(me.getNick() + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() + "! TieBot: " + (enableTieBot? "on": "off") + " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off"));
+				channel.say(me.getNick() + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() 
+						+ "! TieBot: " + (enableTieBot? "on": "off") + " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off")
+						+ " TellBot: " + (enableTellBot? "on": "off") + " Discord: " + (enableDiscordBot? "on": "off") );
 				break;
 				
 			case "tellbot":
@@ -578,6 +595,9 @@ public class GEMWbot implements IRCEventListener
 			ircSettings.setProperty("ircChannel", ircChannel);
 			ircSettings.setProperty("nickServUser", nickServUser);
 			ircSettings.setProperty("nickServPass", nickServPass);
+			ircSettings.setProperty("enableTieBot", "" + enableTieBot);
+			ircSettings.setProperty("enableTieBotNewUsers", "" + enableTieBotNewUsers);
+			ircSettings.setProperty("enableTellBot", "" + enableTellBot);
 			
 			ircSettings.store(output, "GEMWbot's IRC Settings");
 			
@@ -652,11 +672,20 @@ public class GEMWbot implements IRCEventListener
 	
 	private void createTieBotInstance() {
 		rcSession = manager.requestConnection("feedNetwork", /*feedPort*/6667);
-		tieBotInstance = new TieBot(manager, this, Integer.parseInt(ignoreThreshold));
+		tieBotInstance = new TieBot(manager, this, discordBotInstance);
 		rcSession.addIRCEventListener(tieBotInstance);
 		
 		tieBotInstance.setNewUsersFeed(enableTieBotNewUsers);
 		tieBotInstance.setWikiDiscussionsFeed(enableTieBot);
+	}
+	
+	private void createDiscordBotInstance() {
+		try {
+			// while the config exists to disable tellbot, I have no intentions of doing that
+			discordBotInstance = new DiscordBot(tellBotInstance);
+		} catch (DiscordException e) {
+			tellBotInstance.addTell("tybot", "wikia/vstf/TyA", "Discord error when starting discordBot", null);
+		}
 	}
 	
 	public GrandExchangeUpdater getGEMWinstance() {

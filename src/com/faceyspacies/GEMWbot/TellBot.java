@@ -1,5 +1,10 @@
 package com.faceyspacies.GEMWbot;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -8,6 +13,7 @@ import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 
 import jerklib.events.IRCEvent;
 import jerklib.events.JoinEvent;
@@ -27,10 +33,19 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 	private PreparedStatement addTellQuery;
 	private boolean isEvilBotHere;
 	
+	private String dbHost;
+	private String dbName;
+	private String dbUser;
+	private String dbPass;
+	
 	TellBot() {
 		try {
-			// TODO: REMOVE HARD CODED CREDENTIALS 
-			db = DriverManager.getConnection("jdbc:mysql://localhost/tells?useUnicode=true&characterEncoding=UTF-8", "username", "password");
+			
+			if(!loadSettings())
+				System.out.println("Failed to load settings :(");
+			// we will just exception out and die, main tybot will survive 
+			
+			db = DriverManager.getConnection("jdbc:mysql://" + dbHost + "/" + dbName + "?useUnicode=true&characterEncoding=UTF-8", dbUser, dbPass);
 			System.out.println("Created tells db handler");
 			getTellCountQuery = db.prepareStatement("SELECT count(*) AS count FROM tells WHERE target = ?;");
 			getTellCountQueryWithSenders = db.prepareStatement("SELECT sender FROM tells WHERE target = ?;");
@@ -45,6 +60,54 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 			e.printStackTrace();
 			
 		} 
+	}
+	
+	private boolean loadSettings() {
+		Properties settings = new Properties();
+		InputStream input = null;
+		
+		try {
+			File settingsFileLocation = new File("tellbot.properties");
+			input = new FileInputStream(settingsFileLocation);
+			
+			settings.load(input);
+			
+			dbHost = settings.getProperty("dbHost");
+			dbName = settings.getProperty("dbName");
+			dbUser = settings.getProperty("dbUser");
+			dbPass = settings.getProperty("dbPass");
+
+			
+			if(dbHost == null) {
+				System.out.println("[ERROR] dbHost is missing from tellbot.properties; closing");
+				return false;
+			}
+			
+			if(dbName == null) {
+				System.out.println("[ERROR] dbName is missing from tellbot.properties; closing");
+				return false;
+			}
+			
+			if(dbUser == null) {
+				System.out.println("[ERROR] dbUser is missing from tellbot.properties;");
+			}
+			
+			if(dbPass == null) {
+				System.out.println("[ERROR] dbPass is missing from tellbot.properties; closing");
+				return false;
+			}
+			
+		}
+		catch (FileNotFoundException err) {
+			System.out.println("[ERROR] Unable to load tellbot.properties file; closing");
+			return false;
+		} catch (IOException e) {
+			System.out.println("[ERROR] IO Error loading tellbot.properties; closing");
+			return false;
+		}
+		
+		return true;
+		
 	}
 	
 	@Override
@@ -283,27 +346,42 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		}
 	}
 	
-	// Add a tell from nick to target with message
-	private void addTell(String nick, String target, String message, MessageEvent me) {
+	/**
+	 * processes a tell before adding it to the db
+	 * @param nick - who sent it
+	 * @param target - who is getting it
+	 * @param message - what is being sent
+	 * @param me - a MessageEvent object to respond back. null if sent message internally
+	 */
+	protected void addTell(String nick, String target, String message, MessageEvent me) {
 		if(target.indexOf(";") != -1) {
 			// we have thing in the form of nick;nick;nick
 			String[] targets = target.split(";");
 			for(String curr: targets) {
 				if(getTellCountForUser(curr) >= 8 ) {
-					me.getSession().notice(me.getNick(), "Sorry, " + curr + "'s inbox is full :(");
+					if(me != null)
+						me.getSession().notice(me.getNick(), "Sorry, " + curr + "'s inbox is full :(");
 					return;
 				}
 				actuallyAddTell(nick, curr, message, me);
 			}
 		} else {
 			if(getTellCountForUser(target) >= 8 ) {
-				me.getSession().notice(me.getNick(), "Sorry, " + target + "'s inbox is full :(");
+				if(me != null)
+					me.getSession().notice(me.getNick(), "Sorry, " + target + "'s inbox is full :(");
 				return;
 			}
 			actuallyAddTell(nick, target, message, me);
 		}		
 	}
 	
+	/**
+	 * adds a tell to the db
+	 * @param nick - who sent it
+	 * @param target - who is getting it
+	 * @param message - what is being sent
+	 * @param me - a MessageEvent object to respond back. null if sent message internally
+	 */
 	private void actuallyAddTell(String nick, String target, String message, MessageEvent me) {
 		try {
 			if(target.charAt(0) == '@') {
@@ -317,6 +395,8 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 			addTellQuery.executeUpdate();
 			
 		} catch (SQLException e) {
+			if(me == null)
+				return;
 			me.getSession().notice(me.getNick(), "Error sending tell! Please tell ty including what was sent!");
 			System.out.println(e.getMessage());
 		}

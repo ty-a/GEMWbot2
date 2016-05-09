@@ -1,10 +1,15 @@
 package com.faceyspacies.GEMWbot;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.Properties;
 
 import org.wikipedia.Wiki;
 import org.wikipedia.Wiki.User;
@@ -19,6 +24,7 @@ import jerklib.events.MessageEvent;
 public class TieBot implements jerklib.listeners.IRCEventListener {
 	private ConnectionManager manager;
 	private GEMWbot mainIRC;
+	private DiscordBot discord;
 	
 	private boolean newUsersFeed;
 	private boolean wikiDiscussionsFeed;
@@ -29,21 +35,27 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	
 	private int ignoreThreshold;
 	
+	private String dbHost;
+	private String dbName;
+	private String dbUser;
+	private String dbPass;
+	
 	private Wiki wiki = new Wiki("runescape.wikia.com", "");
 	
 	private Connection db;
 	private PreparedStatement query;
 	
-	public TieBot(ConnectionManager manager, GEMWbot main, int ignoreThreshold) {
+	public TieBot(ConnectionManager manager, GEMWbot main, DiscordBot discord) {
 		this.manager = manager;
 		this.mainIRC = main;
-		this.ignoreThreshold = ignoreThreshold;
+		this.discord = discord;
 		
 		isHushed = false;
 		
+		loadSettings();
+		
 		try {
-			// TODO: REMOVE HARD CODED CREDENTIALS 
-			db = DriverManager.getConnection("jdbc:mysql://localhost/users?useUnicode=true&characterEncoding=UTF-8", "username", "password");
+			db = DriverManager.getConnection("jdbc:mysql://" + dbHost + "/" + dbName + "?useUnicode=true&characterEncoding=UTF-8", dbUser, dbPass);
 			query = db.prepareStatement("INSERT INTO users(name, wiki) VALUES (?,?);");
 			System.out.println("Created DB handler");
 			
@@ -51,6 +63,62 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} 
+	}
+	
+	private boolean loadSettings() {
+		Properties settings = new Properties();
+		InputStream input = null;
+		
+		try {
+			File settingsFileLocation = new File("tiebot.properties");
+			input = new FileInputStream(settingsFileLocation);
+			
+			settings.load(input);
+			
+			String temp;
+			
+			dbHost = settings.getProperty("dbHost");
+			dbName = settings.getProperty("dbName");
+			dbUser = settings.getProperty("dbUser");
+			dbPass = settings.getProperty("dbPass");
+			temp = settings.getProperty("ignoreThreshold");
+			
+			if(temp == null) {
+				ignoreThreshold = 22;
+			} else {
+				ignoreThreshold = Integer.parseInt(temp);
+			}
+			
+			if(dbHost == null) {
+				System.out.println("[ERROR] dbHost is missing from tiebot.properties; closing");
+				return false;
+			}
+			
+			if(dbName == null) {
+				System.out.println("[ERROR] dbName is missing from tiebot.properties; closing");
+				return false;
+			}
+			
+			if(dbUser == null) {
+				System.out.println("[ERROR] dbUser is missing from tiebot.properties;");
+			}
+			
+			if(dbPass == null) {
+				System.out.println("[ERROR] dbPass is missing from tiebot.properties; closing");
+				return false;
+			}
+			
+		}
+		catch (FileNotFoundException err) {
+			System.out.println("[ERROR] Unable to load tiebot.properties file; closing");
+			return false;
+		} catch (IOException e) {
+			System.out.println("[ERROR] IO Error loading tiebot.properties; closing");
+			return false;
+		}
+		
+		return true;
+		
 	}
 
 	@Override
@@ -125,7 +193,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		String user;
 		String fullWikiUrl;
 		String count;
-		
+
 		if(isHushed) {
 			if(System.currentTimeMillis() > hushTime) {
 				isHushed = false;
@@ -166,6 +234,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			if(channel == null)
 				return;
 			channel.say(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
+			discord.sendMessage(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
 		}
 	}
 	
@@ -208,6 +277,15 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				return false;
 			}
 				
+			
+			return true;
+		} else if (page.startsWith("RuneScape:Featured images/")) {
+			if(page.toLowerCase().indexOf("/archive") != -1) {
+				// This page is most likely an archive. 
+				// archives usually take the form of /Archive int 
+				// where int is the current archive number
+				return false;
+			}
 			
 			return true;
 		}
