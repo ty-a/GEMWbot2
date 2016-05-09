@@ -20,6 +20,7 @@ public class DiscordBot {
 	private static IDiscordClient client;
 	private boolean isReady = false;
 	private TellBot tellbot;
+	private String channelID;
 	private String token;
 	
 	DiscordBot(TellBot tellbot) throws DiscordException {
