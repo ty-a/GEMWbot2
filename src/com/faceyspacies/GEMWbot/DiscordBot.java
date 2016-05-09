@@ -5,13 +5,19 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import sx.blah.discord.api.ClientBuilder;
 import sx.blah.discord.api.EventSubscriber;
 import sx.blah.discord.api.IDiscordClient;
+import sx.blah.discord.handle.impl.events.MessageReceivedEvent;
 import sx.blah.discord.handle.impl.events.ReadyEvent;
+import sx.blah.discord.handle.obj.IMessage;
+import sx.blah.discord.handle.obj.IRole;
 import sx.blah.discord.util.DiscordException;
 import sx.blah.discord.util.HTTP429Exception;
 import sx.blah.discord.util.MissingPermissionsException;
@@ -22,6 +28,7 @@ public class DiscordBot {
 	private TellBot tellbot;
 	private String channelID;
 	private String token;
+	private static int RESPONSELIMIT = 3;
 	
 	DiscordBot(TellBot tellbot) throws DiscordException {
 		this.tellbot = tellbot;
@@ -71,6 +78,42 @@ public class DiscordBot {
 	}
 	
 	@EventSubscriber
+	    if(!isReady)
+	    	return;
+	    
+	    boolean isAdmin = false;
+	    
+	    IMessage message = event.getMessage();
+	    try {
+		    if(message.getContent().startsWith("~linklimit ")) {
+		    	List<IRole> roles = message.getAuthor().getRolesForGuild(message.getGuild());
+		    	for(IRole role: roles) {
+		    		if(role.getName().equals("badmins"))
+		    			isAdmin = true;
+		    	}
+		    	if(isAdmin) {
+		    		try {
+			    		RESPONSELIMIT = Integer.parseInt(message.getContent().split(" ")[1]);
+			    		client.getChannelByID(message.getChannel().getID()).sendMessage(message.getAuthor().getName() + ": updated link limit!");
+			    	} catch (NumberFormatException | IndexOutOfBoundsException e) {
+						client.getChannelByID(message.getChannel().getID()).sendMessage(message.getAuthor().getName() + ": you have to provide a number!");
+
+			    	}
+		    	} else {
+		    		client.getChannelByID(message.getChannel().getID()).sendMessage(message.getAuthor().getName() + ": you're not allowed to do that!");
+		    	}
+		    } else {
+		    	String links = wikiLinks(message.getContent());
+		    	if(links != null) {
+					client.getChannelByID(message.getChannel().getID()).sendMessage(links);
+		    	}
+		    }
+	    } catch (MissingPermissionsException | HTTP429Exception | DiscordException e) {
+	    		tellbot.addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit " + e.getClass(), null);
+	    }
+	}
+	
+	@EventSubscriber
 	public void onReady(ReadyEvent event) {
 		isReady = true;
 		client.updatePresence(false, Optional.of("Spamming edits to be #1 bot on Wikia"));
@@ -89,7 +132,63 @@ public class DiscordBot {
 			tellbot.addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit MissingPermissionsException - for obv reasons", null);
 		}
 	}
-
+	// begin wikilinks by The Mol Man
+	final static String[][] ENCODING = {
+			{"%", "%25"},
+			{"&", "%26"},
+			{"'", "%27"},
+			{"\\+", "%2B"},
+			{"\\?", "%3F"},
+			{" ", "_"}
+	};
+	
+	public static String wikiLinks(String msg) {
+	
+		String[] links = new String[RESPONSELIMIT];
+	
+		String responses = "[Wiki links] : ";
+		String[] indexParams = { "action", "redirect", "useskin", "section", "offset", "oldid", "direction" };
+		String iparams = String.join("|", indexParams);
+		
+		Pattern linkPattern = Pattern.compile("\\[\\[([^\\]\\|]+)(?:|[^\\]]+)?\\]\\]");
+		Pattern pagePattern = Pattern.compile("^(.+?)(\\?(?:" + iparams + ").+|)$");
+		Matcher pageMatch = linkPattern.matcher(msg);
+	
+		int listSize = 0;
+		for (int i = 0; i < RESPONSELIMIT && pageMatch.find(); i++) {
+			links[i] = pageMatch.group(1);
+			listSize++;
+		}
+		
+		if(listSize <= 0)
+			return null;
+		
+		Matcher pageMatcher;
+		for (int i = 0; i < listSize; i++) {
+			String s = links[i];
+			
+			if (s == null)
+				break;
+			
+			pageMatcher = pagePattern.matcher(s);
+			pageMatcher.find();
+			String page = pageMatcher.group(1);
+			String params = pageMatcher.group(2);
+			
+			if (params.length() == 0)
+				params = "?action=view";
+			
+			// lazy encoding
+			for (int j = 0; j < ENCODING.length; j++) {
+				page = page.replaceAll(ENCODING[j][0],ENCODING[j][1]);
+			}
+			
+			responses += "\nhttp://rs.wikia.com/"+page+params;
+		}
+		return responses;
+	}
+	// END wiki links by The Mol Man
+	
 	public void quit() {
 		try {
 			client.logout();
