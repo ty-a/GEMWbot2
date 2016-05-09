@@ -78,6 +78,7 @@ public class DiscordBot {
 	}
 	
 	@EventSubscriber
+	public void onMessageReceivedEvent(MessageReceivedEvent event) {
 	    if(!isReady)
 	    	return;
 	    
