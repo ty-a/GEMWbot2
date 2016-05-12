@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 import sx.blah.discord.api.ClientBuilder;
 import sx.blah.discord.api.EventSubscriber;
 import sx.blah.discord.api.IDiscordClient;
+import sx.blah.discord.handle.impl.events.DiscordDisconnectedEvent;
 import sx.blah.discord.handle.impl.events.MessageReceivedEvent;
 import sx.blah.discord.handle.impl.events.ReadyEvent;
 import sx.blah.discord.handle.obj.IMessage;
@@ -25,16 +26,16 @@ import sx.blah.discord.util.MissingPermissionsException;
 public class DiscordBot {
 	private static IDiscordClient client;
 	private boolean isReady = false;
-	private TellBot tellbot;
 	private String channelID;
 	private String token;
+	private GEMWbot main;
 	private static int RESPONSELIMIT = 3;
 	
-	DiscordBot(TellBot tellbot) throws DiscordException {
-		this.tellbot = tellbot;
+	DiscordBot(GEMWbot main) throws DiscordException {
+		this.main = main;
 		
 		if(!loadSettings()) {
-			tellbot.addTell("tybot", "wikia/vstf/TyA", "invalid settings in discord.properties", null);
+			main.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "invalid settings in discord.properties", null);
 		}
 		
 		client = new ClientBuilder().withToken(token).login();
@@ -78,6 +79,12 @@ public class DiscordBot {
 	}
 	
 	@EventSubscriber
+	public void onDisconnect(DiscordDisconnectedEvent event) {
+		isReady = false;
+		main.createDiscordBotInstance();
+	}
+	
+	@EventSubscriber
 	public void onMessageReceivedEvent(MessageReceivedEvent event) {
 	    if(!isReady)
 	    	return;
@@ -103,6 +110,10 @@ public class DiscordBot {
 		    	} else {
 		    		client.getChannelByID(message.getChannel().getID()).sendMessage(message.getAuthor().getName() + ": you're not allowed to do that!");
 		    	}
+		    } else if (message.getContent().equalsIgnoreCase("~status")) {
+		    	client.getChannelByID(message.getChannel().getID()).sendMessage(
+		    			main.getDiscordStatusText(message.getAuthor().getName())
+		    		);
 		    } else {
 		    	String links = wikiLinks(message.getContent());
 		    	if(links != null) {
@@ -110,7 +121,7 @@ public class DiscordBot {
 		    	}
 		    }
 	    } catch (MissingPermissionsException | HTTP429Exception | DiscordException e) {
-	    		tellbot.addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit " + e.getClass(), null);
+	    		main.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit " + e.getClass(), null);
 	    }
 	}
 	
@@ -126,11 +137,11 @@ public class DiscordBot {
 				client.getChannelByID(channelID).sendMessage(message);
 			
 		} catch (HTTP429Exception e) {
-			tellbot.addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit HTTP429Exception - too many requests", null);
+			main.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit HTTP429Exception - too many requests", null);
 		} catch (DiscordException e) {
-			tellbot.addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit DiscordException - miscellanious error", null);
+			main.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit DiscordException - miscellanious error", null);
 		} catch (MissingPermissionsException e) {
-			tellbot.addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit MissingPermissionsException - for obv reasons", null);
+			main.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit MissingPermissionsException - for obv reasons", null);
 		}
 	}
 	// begin wikilinks by The Mol Man

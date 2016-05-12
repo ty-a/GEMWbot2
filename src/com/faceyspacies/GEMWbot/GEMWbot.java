@@ -7,10 +7,13 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import sx.blah.discord.util.DiscordException;
 import jerklib.Channel;
@@ -33,6 +36,8 @@ public class GEMWbot implements IRCEventListener
 	protected String ircChannel;
 	private String nickServUser;
 	private String nickServPass;
+	private String feedNetwork;
+	private int feedPort;
 	protected boolean enableTieBot;
 	protected boolean enableTieBotNewUsers;
 	protected boolean enableTellBot;
@@ -89,13 +94,22 @@ public class GEMWbot implements IRCEventListener
 			ircChannel = ircSettings.getProperty("ircChannel");
 			nickServUser = ircSettings.getProperty("nickServUser");
 			nickServPass = ircSettings.getProperty("nickServPass");
+			feedNetwork = ircSettings.getProperty("feedNetwork");
+			
+			try {
+				feedPort = Integer.parseInt(ircSettings.getProperty("feedPort"));
+			} catch (NumberFormatException e) {
+				System.out.println("[ERROR] feedPort is missing from irc.properties or invalid; closing");
+				System.exit(0);
+			}
+			
 			String temp = ircSettings.getProperty("enableTieBot");
 			if(temp == null) 
 				enableTieBot = false;
 			else
 				enableTieBot = temp.equals("true") ? true : false;
 			
-			temp = ircSettings.getProperty("enableNewUsers");
+			temp = ircSettings.getProperty("enableTieBotNewUsers");
 			if(temp == null) 
 				enableTieBotNewUsers = false;
 			else
@@ -145,6 +159,11 @@ public class GEMWbot implements IRCEventListener
 			
 			if (adminHosts == null) {
 				System.out.println("[ERROR] nickServPass is missing from irc.properties; closing");
+				System.exit(0);
+			}
+			
+			if(feedNetwork == null) {
+				System.out.println("[ERROR] feedNetwork is missing from irc.properties; closing");
 				System.exit(0);
 			}
 			
@@ -492,15 +511,7 @@ public class GEMWbot implements IRCEventListener
 			
 			case "astatus":
 			case "status":
-				if(updateTask == null) {
-					channel.say(me.getNick() + ": The GE Updater is not running! TieBot: " + (enableTieBot? "on": "off") 
-							+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
-							+ (enableDiscordBot? "on": "off") );
-					break;
-				}
-				channel.say(me.getNick() + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() 
-						+ "! TieBot: " + (enableTieBot? "on": "off") + " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off")
-						+ " TellBot: " + (enableTellBot? "on": "off") + " Discord: " + (enableDiscordBot? "on": "off") );
+				channel.say(getStatusText(me.getNick()));
 				break;
 				
 			case "tellbot":
@@ -598,6 +609,9 @@ public class GEMWbot implements IRCEventListener
 			ircSettings.setProperty("enableTieBot", "" + enableTieBot);
 			ircSettings.setProperty("enableTieBotNewUsers", "" + enableTieBotNewUsers);
 			ircSettings.setProperty("enableTellBot", "" + enableTellBot);
+			ircSettings.setProperty("enableDiscordBot", "" + enableDiscordBot);
+			ircSettings.setProperty("feedNetwork", feedNetwork);
+			ircSettings.setProperty("feedPort", "" + feedPort);
 			
 			ircSettings.store(output, "GEMWbot's IRC Settings");
 			
@@ -671,18 +685,17 @@ public class GEMWbot implements IRCEventListener
 	}
 	
 	private void createTieBotInstance() {
-		rcSession = manager.requestConnection("feedNetwork", /*feedPort*/6667);
-		tieBotInstance = new TieBot(manager, this, discordBotInstance);
+		rcSession = manager.requestConnection(feedNetwork, feedPort);
+		tieBotInstance = new TieBot(manager, this);
 		rcSession.addIRCEventListener(tieBotInstance);
 		
 		tieBotInstance.setNewUsersFeed(enableTieBotNewUsers);
 		tieBotInstance.setWikiDiscussionsFeed(enableTieBot);
 	}
 	
-	private void createDiscordBotInstance() {
+	protected void createDiscordBotInstance() {
 		try {
-			// while the config exists to disable tellbot, I have no intentions of doing that
-			discordBotInstance = new DiscordBot(tellBotInstance);
+			discordBotInstance = new DiscordBot(this);
 		} catch (DiscordException e) {
 			tellBotInstance.addTell("tybot", "wikia/vstf/TyA", "Discord error when starting discordBot", null);
 		}
@@ -692,6 +705,14 @@ public class GEMWbot implements IRCEventListener
 		return updateTask;
 	}
 	
+	public TellBot getTellBotInstance() {
+		return tellBotInstance;
+	}
+	
+	public DiscordBot getDiscordBotInstance() {
+		return discordBotInstance;
+	}
+	
 	public TieBot getTieBotinstance() {
 		return tieBotInstance;
 	}
@@ -699,5 +720,52 @@ public class GEMWbot implements IRCEventListener
 	private void addTellBotCommands() {
 		tellBotInstance = new TellBot();
 		session.addIRCEventListener(tellBotInstance);
+	}
+	
+	public String getStatusText(String nick) {
+		RuntimeMXBean rb = ManagementFactory.getRuntimeMXBean();
+		long millis = rb.getUptime();
+		long second = TimeUnit.MILLISECONDS.toSeconds(millis);
+		long minute = TimeUnit.MILLISECONDS.toMinutes(millis);
+		long hour = TimeUnit.MILLISECONDS.toHours(millis);
+		long day = TimeUnit.MICROSECONDS.toDays(millis);
+		String uptime = String.format("%02d days %02d hours %02d minutes %02d seconds", day, hour, minute, second);
+		String out = "";
+		if(updateTask == null) {
+			out = nick + ": The GE Updater is not running! ";
+			
+		} else {
+			out = nick + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() + "! ";
+		}
+		
+		out += "Uptime: " + uptime + " TieBot: " + (enableTieBot? "on": "off") 
+				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
+				+ (enableDiscordBot? "on": "off");
+		
+		return out;
+		
+	}
+	
+	public String getDiscordStatusText(String nick) {
+		RuntimeMXBean rb = ManagementFactory.getRuntimeMXBean();
+		long millis = rb.getUptime();
+		long second = TimeUnit.MILLISECONDS.toSeconds(millis);
+		long minute = TimeUnit.MILLISECONDS.toMinutes(millis);
+		long hour = TimeUnit.MILLISECONDS.toHours(millis);
+		long day = TimeUnit.MICROSECONDS.toDays(millis);
+		String uptime = String.format("%02d days %02d hours %02d minutes %02d seconds", day, hour, minute, second);
+		String out = "";
+		if(updateTask == null) {
+			out = nick + ": The GE Updater is not running!\n";
+			
+		} else {
+			out = nick + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() + "!\n";
+		}
+		
+		out += "Uptime: " + uptime + "\nTieBot: " + (enableTieBot? "on": "off") 
+				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
+				+ (enableDiscordBot? "on": "off");
+		
+		return out;
 	}
 }

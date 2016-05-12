@@ -24,7 +24,6 @@ import jerklib.events.MessageEvent;
 public class TieBot implements jerklib.listeners.IRCEventListener {
 	private ConnectionManager manager;
 	private GEMWbot mainIRC;
-	private DiscordBot discord;
 	
 	private boolean newUsersFeed;
 	private boolean wikiDiscussionsFeed;
@@ -39,16 +38,16 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	private String dbName;
 	private String dbUser;
 	private String dbPass;
+	private String feedChannel;
 	
 	private Wiki wiki = new Wiki("runescape.wikia.com", "");
 	
 	private Connection db;
 	private PreparedStatement query;
 	
-	public TieBot(ConnectionManager manager, GEMWbot main, DiscordBot discord) {
+	public TieBot(ConnectionManager manager, GEMWbot main) {
 		this.manager = manager;
 		this.mainIRC = main;
-		this.discord = discord;
 		
 		isHushed = false;
 		
@@ -81,6 +80,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			dbName = settings.getProperty("dbName");
 			dbUser = settings.getProperty("dbUser");
 			dbPass = settings.getProperty("dbPass");
+			feedChannel = settings.getProperty("feedChannel");
 			temp = settings.getProperty("ignoreThreshold");
 			
 			if(temp == null) {
@@ -108,6 +108,11 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				return false;
 			}
 			
+			if(feedChannel == null) {
+				System.out.println("[ERROR] feedChannel is missing from tiebot.properties; closing");
+				return false;
+			}
+			
 		}
 		catch (FileNotFoundException err) {
 			System.out.println("[ERROR] Unable to load tiebot.properties file; closing");
@@ -127,7 +132,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		if (e.getType() == Type.CONNECT_COMPLETE)
 		{
 			// Feed network has no NickServ, so there can be no authentication
-			e.getSession().join("feedChannel");
+			e.getSession().join(feedChannel);
 		}
 		else if(e.getType() == Type.CHANNEL_MESSAGE) {
 			processMessage((MessageEvent) e);
@@ -234,7 +239,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			if(channel == null)
 				return;
 			channel.say(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
-			discord.sendMessage(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
+			mainIRC.getDiscordBotInstance().sendMessage(page + " | " + fullWikiUrl  + "\nEdited by " + user + ": " + summary);
 		}
 	}
 	

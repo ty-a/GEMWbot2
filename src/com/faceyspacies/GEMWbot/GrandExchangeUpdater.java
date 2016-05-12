@@ -16,10 +16,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 	
 	private int numberOfPages;
 	private int numberOfPagesUpdated;
-	private int runningMode;
-	
-	private GEPrice price; // temp for having to update both to save calls to gemw api
-	
+
 	private boolean haveWarnedOnPriceOfZero;
 	
 	private VolumeHandler volumes;
@@ -31,9 +28,6 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			throw new Exception("Failed to init");
 		}
 		
-		runningMode = 1; // 0 = exchange, 1 = module, 2 = both
-		
-		price = null;
 		haveWarnedOnPriceOfZero = false;
 		
 	}
@@ -76,7 +70,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				try {
 					Thread.sleep(3000);
 				} catch (InterruptedException e) {
-					ircInstance.sendMessage(ircChannel, "`tell @wikia/vstf/TyA UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW");
+					ircInstance.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW", null);
 				}
 			} else { // if no longer running, stop loop and end
 				return;
@@ -96,18 +90,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		failures = 0;
 		
 		while(failures < 3) {
-			price = null;
 			try {
-				// all items that do not throw exceptions are not recoverable
-				switch(runningMode) {
-				case 0:
-					return updatePage(page);
-				case 1:
-					return updateModulePage(page);
-				case 2:
-					addToLog(updateModulePage(page), page);
-					return updatePage(page);
-				}
+				return updateModulePage(page);
 			} catch (IOException e) {
 				failures++;
 				if(failures == 3) {
@@ -123,7 +107,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				Login();
 			} catch (PriceIsZeroException e) {
 				if(!haveWarnedOnPriceOfZero) {
-					ircInstance.sendMessage(ircChannel, "`tell @wikia/vstf/TyA;@Wikipedia/The-Mol-Man HAD A ZERO PRICE; FREAKING OUT RIGHT NOW. CHECK LOG.");
+					ircInstance.getTellBotInstance().addTell("tybot", "@wikia/vstf/TyA;@Wikipedia/The-Mol-Man", "HAD A ZERO PRICE; FREAKING OUT RIGHT NOW. CHECK LOG.", null);
 					haveWarnedOnPriceOfZero = true;
 				}
 				
@@ -152,109 +136,13 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			} catch (IOException e1) {
 				failures++;
 				if(failures == 3) {
-					ircInstance.sendMessage(ircChannel, "`tell @wikia/vstf/TyA unable to get page list.");
+					ircInstance.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "I was unable to get the page list.", null);
 					return null;
 				}
 			}
 		} 
 		
 		return null; // shouldn't reach here, but if we do assume we have failed. 
-	}
-	
-	private UpdateResult updatePage(String pageName) throws IOException, LoginException {
-		String itemID = null;
-		GEPrice newPrice = null;
-		
-		pageName = pageName.replace(" ", "_");
-		
-		if(pageName.indexOf("Exchange:") == -1) {
-			pageName = "Exchange:" + pageName;
-		}
-		
-		boolean doesExist;
-		doesExist = (boolean)wikiBot.getPageInfo(pageName).get("exists");
-		if(!doesExist) {
-			return new UpdateResult("page does not exist", false);
-		}
-		
-		String pageContent = wikiBot.getPageText(pageName);
-		
-		if(pageContent.length() == 0) {
-			return new UpdateResult("page is empty", false);
-		}
-		
-		if(runningMode == 1) { // Just updating exchange pages
-			
-			Pattern itemIDregex = Pattern.compile("\\|ItemId=(\\d+)");
-			Matcher itemIDMatcher = itemIDregex.matcher(pageContent);
-			
-			if(itemIDMatcher.find()) {
-				itemID = itemIDMatcher.group(1);
-			} else {
-				System.out.println("[ERROR] unable to load item id");
-				return new UpdateResult("unable to load item id", false);
-
-			}
-			
-			for(int i = 0; i < 3; i++) {
-				try {
-					newPrice = loadCurPrice(itemID);
-				} catch (MalformedURLException e) {
-					System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
-					return new UpdateResult("item id is invalid", false);
-				}
-				
-				if(newPrice == null) {
-					try {
-						Thread.sleep(3000);
-					} catch (InterruptedException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-					
-					newPrice = loadCurPrice(itemID);
-				} else {
-					break;
-				}
-			}
-			
-			// if after three tries we still cannot get a price, give up 
-			if(newPrice == null)
-				return new UpdateResult("unable to fetch price", false);
-		} else {
-			// this.price was set by updateModulePage
-			newPrice = this.price;
-		}
-		
-		String volume = volumes.getVolumeFor(newPrice.getId());
-		if(volume != null) { // WE HAVE VOLUME DATA, WOO!
-			// since we don't need the data again, it is safe to just remove it
-			if(pageContent.indexOf("VolumeDate=") != -1) {
-				pageContent = pageContent.replaceAll("\\|Volume=.*\\n", "\\|Volume=" + volume + "\n");
-				pageContent = pageContent.replaceAll("\\|VolumeDate=.*\\n", "\\|VolumeDate=~~~~~\n");
-			} else { // Does not have volume fields on page, but has data. probs newly on top100
-				String newVolText = "";
-				newVolText = "|Volume= " + volume + "\n";
-				newVolText += "|VolumeDate=~~~~~\n";
-				newVolText += "|Limit=";
-				pageContent = pageContent.replaceAll("\\|Limit=", newVolText);
-			}
-		}
-		
-		// remove data that we don't need
-		pageContent = pageContent.replaceAll("\\|Last=.*\\n", "");
-		pageContent = pageContent.replaceAll("\\|LastDate=.*\\n", "");
-		
-		//replaces Price/Date with the new date and pushes the old price down to the LastPrice/LastDate param 
-		// which we removed above.
-		pageContent = pageContent.replaceAll("\\|Price=", String.format("|Price=%,d\n|Last=", Integer.parseInt(newPrice.getPrice())));
-		
-		pageContent = pageContent.replaceAll("\\|Date=", "|Date=~~~~~\n|LastDate=");
-		
-		wikiBot.edit(pageName, pageContent, "Updating price");
-		
-		addToLog(doDataUpdate(pageName, newPrice), pageName + "/Data");
-		return new UpdateResult("", true);
 	}
 	
 	private UpdateResult doDataUpdate(String pageName, GEPrice price) {
@@ -346,6 +234,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		return new UpdateResult("", true);
 	}
 	
+	@SuppressWarnings("unused")
 	private String[] getModulePages(Wiki wiki) {
 		int failures = 0;
 		
@@ -356,7 +245,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			} catch (IOException e1) {
 				failures++;
 				if(failures == 3) {
-					ircInstance.sendMessage(ircChannel, "`tell @wikia/vstf/TyA unable to get page list.");
+					ircInstance.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "I was unable to get the module page list.", null);
 					return null;
 				}
 			}
@@ -402,10 +291,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			if(newPrice == null) {
 				try {
 					Thread.sleep(3000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				} catch (InterruptedException e) {}
 				
 				newPrice = loadCurPrice(itemID);
 			} else if(newPrice.getPrice().equalsIgnoreCase("0")) {
@@ -414,9 +300,6 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				break;
 			}
 		}
-		
-		if(runningMode == 2) // so we don't have to refetch it and worry about the rate limit
-			this.price = newPrice;
 		
 		// if after three tries we still cannot get a price, give up 
 		if(newPrice == null)
@@ -528,17 +411,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			// We are just interested in the number
 			parsedContent = parsedContent.substring(0, parsedContent.indexOf("<"));
 			
-			// 0 = exchange, 1 = module, 2 = both)
-			if(runningMode == 0) {
-				doTradeIndexUpdate("Template:" + page, currentDayTimestamp, parsedContent);
-			}
-			else if (runningMode == 1) {
-				doTradeIndexUpdate("Module:Exchange/" + page.replaceAll("GE ",  ""), currentDayTimestamp, parsedContent);
-			}
-			else {
-				doTradeIndexUpdate("Template:" + page, currentDayTimestamp, parsedContent);
-				doTradeIndexUpdate("Module:Exchange/" + page.replaceAll("GE ",  ""), currentDayTimestamp, parsedContent);
-			}
+			doTradeIndexUpdate("Module:Exchange/" + page.replaceAll("GE ",  ""), currentDayTimestamp, parsedContent);
+
 		}
 	}
 	
