@@ -723,13 +723,6 @@ public class GEMWbot implements IRCEventListener
 	}
 	
 	public String getStatusText(String nick) {
-		RuntimeMXBean rb = ManagementFactory.getRuntimeMXBean();
-		long millis = rb.getUptime();
-		long second = TimeUnit.MILLISECONDS.toSeconds(millis);
-		long minute = TimeUnit.MILLISECONDS.toMinutes(millis);
-		long hour = TimeUnit.MILLISECONDS.toHours(millis);
-		long day = TimeUnit.MICROSECONDS.toDays(millis);
-		String uptime = String.format("%02d days %02d hours %02d minutes %02d seconds", day, hour, minute, second);
 		String out = "";
 		if(updateTask == null) {
 			out = nick + ": The GE Updater is not running! ";
@@ -738,7 +731,7 @@ public class GEMWbot implements IRCEventListener
 			out = nick + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() + "! ";
 		}
 		
-		out += "Uptime: " + uptime + " TieBot: " + (enableTieBot? "on": "off") 
+		out += "Uptime: " + getUptime() + " TieBot: " + (enableTieBot? "on": "off") 
 				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
 				+ (enableDiscordBot? "on": "off");
 		
@@ -746,14 +739,19 @@ public class GEMWbot implements IRCEventListener
 		
 	}
 	
-	public String getDiscordStatusText(String nick) {
+	public String getUptime() {
 		RuntimeMXBean rb = ManagementFactory.getRuntimeMXBean();
 		long millis = rb.getUptime();
-		long second = TimeUnit.MILLISECONDS.toSeconds(millis);
-		long minute = TimeUnit.MILLISECONDS.toMinutes(millis);
-		long hour = TimeUnit.MILLISECONDS.toHours(millis);
 		long day = TimeUnit.MICROSECONDS.toDays(millis);
+		long hour = TimeUnit.MILLISECONDS.toHours(millis) - TimeUnit.DAYS.toHours(day);
+		long minute = TimeUnit.MILLISECONDS.toMinutes(millis) - TimeUnit.DAYS.toMinutes(day) - TimeUnit.HOURS.toMinutes(hour);
+		long second = TimeUnit.MILLISECONDS.toSeconds(millis) - TimeUnit.DAYS.toSeconds(day) - TimeUnit.HOURS.toSeconds(hour) - TimeUnit.MINUTES.toSeconds(minute);
 		String uptime = String.format("%02d days %02d hours %02d minutes %02d seconds", day, hour, minute, second);
+		return uptime;
+	}
+	
+	public String getDiscordStatusText(String nick) {
+		
 		String out = "";
 		if(updateTask == null) {
 			out = nick + ": The GE Updater is not running!\n";
@@ -762,7 +760,7 @@ public class GEMWbot implements IRCEventListener
 			out = nick + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() + "!\n";
 		}
 		
-		out += "Uptime: " + uptime + "\nTieBot: " + (enableTieBot? "on": "off") 
+		out += "Uptime: " + getUptime() + "\nTieBot: " + (enableTieBot? "on": "off") 
 				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
 				+ (enableDiscordBot? "on": "off");
 		
