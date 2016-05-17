@@ -17,6 +17,7 @@ import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.handle.impl.events.DiscordDisconnectedEvent;
 import sx.blah.discord.handle.impl.events.MessageReceivedEvent;
 import sx.blah.discord.handle.impl.events.ReadyEvent;
+import sx.blah.discord.handle.obj.IGuild;
 import sx.blah.discord.handle.obj.IMessage;
 import sx.blah.discord.handle.obj.IRole;
 import sx.blah.discord.util.DiscordException;
@@ -102,22 +103,79 @@ public class DiscordBot {
 		    	if(isAdmin) {
 		    		try {
 			    		RESPONSELIMIT = Integer.parseInt(message.getContent().split(" ")[1]);
-			    		client.getChannelByID(message.getChannel().getID()).sendMessage(message.getAuthor().getName() + ": updated link limit!");
+			    		message.getChannel().sendMessage(message.getAuthor().getName() + ": updated link limit!");
 			    	} catch (NumberFormatException | IndexOutOfBoundsException e) {
-						client.getChannelByID(message.getChannel().getID()).sendMessage(message.getAuthor().getName() + ": you have to provide a number!");
+						message.getChannel().sendMessage(message.getAuthor().getName() + ": you have to provide a number!");
 
 			    	}
 		    	} else {
-		    		client.getChannelByID(message.getChannel().getID()).sendMessage(message.getAuthor().getName() + ": you're not allowed to do that!");
+		    		message.getChannel().sendMessage(message.getAuthor().getName() + ": you're not allowed to do that!");
 		    	}
 		    } else if (message.getContent().equalsIgnoreCase("~status")) {
-		    	client.getChannelByID(message.getChannel().getID()).sendMessage(
+		    	message.getChannel()).sendMessage(
 		    			main.getDiscordStatusText(message.getAuthor().getName())
 		    		);
+		    } else if (message.getContent().equalsIgnoreCase("~addme")) {
+		    	List<IRole> roles = message.getAuthor().getRolesForGuild(message.getGuild());
+		    	if(roles != null) {
+			    	for(IRole role: roles) {
+			    		if(role.getName().equals("wiki squids")) {
+			    			message.getChannel().sendMessage(message.getAuthor().getName() + ": You are already subscribed to wiki notifications");
+			    			return;
+			    		}
+			    	}
+		    	}
+		    	
+		    	List<IRole> guildRoles = message.getGuild().getRoles();
+		    	String roleID = null;
+		    	for(IRole role: guildRoles) {
+		    		if(role.getName().equalsIgnoreCase("wiki squids"))
+		    			roleID = role.getID();
+		    	}
+		    	if(roleID == null) {
+		    		System.out.println("wiki squids is not defined");
+		    		return;
+		    	}
+		    	IGuild currGuild = message.getGuild();
+		    	roles.add(currGuild.getRoleByID(roleID));
+		    	currGuild.editUserRoles(message.getAuthor(), roles.toArray(new IRole[roles.size()]));
+		    	message.getChannel().sendMessage(message.getAuthor().getName() + ": You have subscribed to wiki notifications!");
+		    	
+		    } else if (message.getContent().equalsIgnoreCase("~removeme")) {
+		    	List<IRole> roles = message.getAuthor().getRolesForGuild(message.getGuild());
+		    	boolean isSquid = false;
+		    	if(roles != null) {
+			    	for(IRole role: roles) {
+			    		if(role.getName().equals("wiki squids")) {
+			    			isSquid = true;
+			    		}
+			    	}
+		    	}
+		    	
+		    	if(!isSquid) {
+		    		message.getChannel().sendMessage(message.getAuthor().getName() + ": You aren't subscribed to wiki notifications");
+    				return;
+		    	}
+		    	
+		    	List<IRole> guildRoles = message.getGuild().getRoles();
+		    	String roleID = null;
+		    	for(IRole role: guildRoles) {
+		    		if(role.getName().equalsIgnoreCase("wiki squids"))
+		    			roleID = role.getID();
+		    	}
+		    	if(roleID == null) {
+		    		System.out.println("wiki squids is not defined");
+		    		return;
+		    	}
+		    	
+		    	IGuild currGuild = message.getGuild();
+		    	roles.remove(currGuild.getRoleByID(roleID));
+		    	currGuild.editUserRoles(message.getAuthor(), roles.toArray(new IRole[roles.size()]));
+		    	message.getChannel().sendMessage(message.getAuthor().getName() + ": You have unsubscribed to wiki notifications!");
 		    } else {
 		    	String links = wikiLinks(message.getContent());
 		    	if(links != null) {
-					client.getChannelByID(message.getChannel().getID()).sendMessage(links);
+					message.getChannel().sendMessage(links);
 		    	}
 		    }
 	    } catch (MissingPermissionsException | HTTP429Exception | DiscordException e) {
@@ -187,7 +245,7 @@ public class DiscordBot {
 			String page = pageMatcher.group(1);
 			String params = pageMatcher.group(2);
 			
-			if (params.length() == 0)
+			if (params.length() == 0 && s.indexOf("#") == -1)
 				params = "?action=view";
 			
 			// lazy encoding

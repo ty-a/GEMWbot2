@@ -239,7 +239,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			if(channel == null)
 				return;
 			channel.say(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
-			mainIRC.getDiscordBotInstance().sendMessage(page + " | " + fullWikiUrl  + "\nEdited by " + user + ": " + summary);
+			mainIRC.getDiscordBotInstance().sendMessage("@wiki squids " + page + " | " + fullWikiUrl  + "\nEdited by " + user + ": " + summary);
 		}
 	}
 	
