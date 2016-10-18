@@ -21,12 +21,16 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 	
 	private VolumeHandler volumes;
 	
+	private String GEPricesString;
+	
 	GrandExchangeUpdater(GEMWbot ircInstance) throws Exception {
 		super(ircInstance);
 		
 		if(wikiBot == null) {
 			throw new Exception("Failed to init");
 		}
+		
+		GEPricesString = "return {\n";
 		
 		haveWarnedOnPriceOfZero = false;
 		
@@ -75,6 +79,15 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			} else { // if no longer running, stop loop and end
 				return;
 			}
+		}
+		
+		GEPricesString = GEPricesString.substring(0, GEPricesString.length() - 2);
+		GEPricesString += "\n}"; 
+		
+		try {
+			wikiBot.edit("Module:GEPrices/data", GEPricesString, "updating thing");
+		} catch (LoginException | IOException e) {
+			System.out.println("Failed to update GEPrices :(");
 		}
 		
 		updateTradeIndexData();
@@ -319,6 +332,10 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				newVolText += "    icon";
 				pageContent = pageContent.replaceAll("    icon", newVolText);
 			}
+		}
+		
+		if(!GEPricesString.contains(pageName.substring(16))) {
+			GEPricesString += "  ['" + pageName.substring(16).replace("'", "\\'").replace("_"," ") + "'] = " + newPrice.getPrice() + ",\n";
 		}
 		
 		// remove data that we don't need

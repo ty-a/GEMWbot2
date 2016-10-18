@@ -34,16 +34,16 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	
 	private int ignoreThreshold;
 	
-	private String dbHost;
-	private String dbName;
-	private String dbUser;
-	private String dbPass;
+//	private String dbHost;
+//	private String dbName;
+//	private String dbUser;
+//	private String dbPass;
 	private String feedChannel;
 	
 	private Wiki wiki = new Wiki("runescape.wikia.com", "");
 	
-	private Connection db;
-	private PreparedStatement query;
+	//private Connection db;
+	//private PreparedStatement query;
 	
 	public TieBot(ConnectionManager manager, GEMWbot main) {
 		this.manager = manager;
@@ -53,15 +53,15 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		
 		loadSettings();
 		
-		try {
-			db = DriverManager.getConnection("jdbc:mysql://" + dbHost + "/" + dbName + "?useUnicode=true&characterEncoding=UTF-8", dbUser, dbPass);
-			query = db.prepareStatement("INSERT INTO users(name, wiki) VALUES (?,?);");
-			System.out.println("Created DB handler");
-			
-		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} 
+//		try {
+//			db = DriverManager.getConnection("jdbc:mysql://" + dbHost + "/" + dbName + "?useUnicode=true&characterEncoding=UTF-8", dbUser, dbPass);
+//			query = db.prepareStatement("INSERT INTO users(name, wiki) VALUES (?,?);");
+//			System.out.println("Created DB handler");
+//			
+//		} catch (SQLException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		} 
 	}
 	
 	private boolean loadSettings() {
@@ -76,10 +76,10 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			
 			String temp;
 			
-			dbHost = settings.getProperty("dbHost");
-			dbName = settings.getProperty("dbName");
-			dbUser = settings.getProperty("dbUser");
-			dbPass = settings.getProperty("dbPass");
+//			dbHost = settings.getProperty("dbHost");
+//			dbName = settings.getProperty("dbName");
+//			dbUser = settings.getProperty("dbUser");
+//			dbPass = settings.getProperty("dbPass");
 			feedChannel = settings.getProperty("feedChannel");
 			temp = settings.getProperty("ignoreThreshold");
 			
@@ -89,6 +89,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				ignoreThreshold = Integer.parseInt(temp);
 			}
 			
+			/*
 			if(dbHost == null) {
 				System.out.println("[ERROR] dbHost is missing from tiebot.properties; closing");
 				return false;
@@ -108,6 +109,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				return false;
 			}
 			
+			*/
 			if(feedChannel == null) {
 				System.out.println("[ERROR] feedChannel is missing from tiebot.properties; closing");
 				return false;
@@ -169,16 +171,16 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		int nameEnd = noColorsMessage.indexOf(" * ", nameStart);
 		String user = noColorsMessage.substring(nameStart, nameEnd);
 		
-		if(db != null && query != null) {	
-			try {
-				query.setString(1, user);
-				query.setString(2, wiki);
-				
-				query.execute();
-			} catch (SQLException e) {
-				System.out.printf("Unable to add %s@%s to the DB!%n", user, wiki);
-			}
-		}
+//		if(db != null && query != null) {	
+//			try {
+//				query.setString(1, user);
+//				query.setString(2, wiki);
+//				
+//				query.execute();
+//			} catch (SQLException e) {
+//				System.out.printf("Unable to add %s@%s to the DB!%n", user, wiki);
+//			}
+//		}
 		
 		Session mainSession = manager.getSession("irc.freenode.net");
 		Channel channel = mainSession.getChannel("#cvn-wikia-newusers");
@@ -206,8 +208,6 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				return;
 			}
 		}
-		
-		
 		
 		page = message.substring(2, message.indexOf("]]"));
 		
@@ -239,7 +239,8 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			if(channel == null)
 				return;
 			channel.say(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
-			mainIRC.getDiscordBotInstance().sendMessage("@wiki squids " + page + " | " + fullWikiUrl  + "\nEdited by " + user + ": " + summary);
+			if(mainIRC.getDiscordBotInstance() != null)
+				mainIRC.getDiscordBotInstance().sendMessage(page + " | " + fullWikiUrl  + "\nEdited by " + user + ": " + summary);
 		}
 	}
 	
@@ -353,14 +354,14 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	}
 	
 	protected void cleanupBeforeQuit() {
-		try {
-			if(db != null) {
-				db.close();
-			}
-			
-			if(query != null) {
-				query.close();
-			}
-		} catch (SQLException e) { }
+//		try {
+//			if(db != null) {
+//				db.close();
+//			}
+//			
+//			if(query != null) {
+//				query.close();
+//			}
+//		} catch (SQLException e) { }
 	}
 }

@@ -694,11 +694,12 @@ public class GEMWbot implements IRCEventListener
 	}
 	
 	protected void createDiscordBotInstance() {
-		try {
-			discordBotInstance = new DiscordBot(this);
-		} catch (DiscordException e) {
-			tellBotInstance.addTell("tybot", "wikia/vstf/TyA", "Discord error when starting discordBot", null);
-		}
+		
+//		try {
+//			discordBotInstance = new DiscordBot(this);
+//		} catch (DiscordException e) {
+//			tellBotInstance.addTell("tybot", "wikia/vstf/TyA", "Discord error when starting discordBot", null);
+//		}
 	}
 	
 	public GrandExchangeUpdater getGEMWinstance() {
@@ -710,6 +711,12 @@ public class GEMWbot implements IRCEventListener
 	}
 	
 	public DiscordBot getDiscordBotInstance() {
+		if(discordBotInstance == null) {
+			return null;
+		}
+		if(discordBotInstance.isDisconnected()) {
+			createDiscordBotInstance();
+		}
 		return discordBotInstance;
 	}
 	
@@ -733,7 +740,7 @@ public class GEMWbot implements IRCEventListener
 		
 		out += "Uptime: " + getUptime() + " TieBot: " + (enableTieBot? "on": "off") 
 				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
-				+ (enableDiscordBot? "on": "off");
+				+ ((discordBotInstance == null)? "on": "off");
 		
 		return out;
 		
@@ -742,7 +749,7 @@ public class GEMWbot implements IRCEventListener
 	public String getUptime() {
 		RuntimeMXBean rb = ManagementFactory.getRuntimeMXBean();
 		long millis = rb.getUptime();
-		long day = TimeUnit.MICROSECONDS.toDays(millis);
+		long day = TimeUnit.MILLISECONDS.toDays(millis);
 		long hour = TimeUnit.MILLISECONDS.toHours(millis) - TimeUnit.DAYS.toHours(day);
 		long minute = TimeUnit.MILLISECONDS.toMinutes(millis) - TimeUnit.DAYS.toMinutes(day) - TimeUnit.HOURS.toMinutes(hour);
 		long second = TimeUnit.MILLISECONDS.toSeconds(millis) - TimeUnit.DAYS.toSeconds(day) - TimeUnit.HOURS.toSeconds(hour) - TimeUnit.MINUTES.toSeconds(minute);
@@ -762,7 +769,7 @@ public class GEMWbot implements IRCEventListener
 		
 		out += "Uptime: " + getUptime() + "\nTieBot: " + (enableTieBot? "on": "off") 
 				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
-				+ (enableDiscordBot? "on": "off");
+				+ ((discordBotInstance == null)? "on": "off");
 		
 		return out;
 	}

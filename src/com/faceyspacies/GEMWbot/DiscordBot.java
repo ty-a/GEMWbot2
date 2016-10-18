@@ -6,30 +6,33 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import sx.blah.discord.api.ClientBuilder;
-import sx.blah.discord.api.EventSubscriber;
 import sx.blah.discord.api.IDiscordClient;
+import sx.blah.discord.api.events.EventSubscriber;
 import sx.blah.discord.handle.impl.events.DiscordDisconnectedEvent;
 import sx.blah.discord.handle.impl.events.MessageReceivedEvent;
 import sx.blah.discord.handle.impl.events.ReadyEvent;
 import sx.blah.discord.handle.obj.IGuild;
 import sx.blah.discord.handle.obj.IMessage;
 import sx.blah.discord.handle.obj.IRole;
+import sx.blah.discord.handle.obj.Status;
 import sx.blah.discord.util.DiscordException;
-import sx.blah.discord.util.HTTP429Exception;
 import sx.blah.discord.util.MissingPermissionsException;
+import sx.blah.discord.util.RateLimitException;
 
 public class DiscordBot {
 	private static IDiscordClient client;
 	private boolean isReady = false;
+	private boolean isDisconnected = false;
 	private String channelID;
 	private String token;
 	private GEMWbot main;
+	private IGuild rswGuild;
+	private IRole wikiSquidsRole;
 	private static int RESPONSELIMIT = 3;
 	
 	DiscordBot(GEMWbot main) throws DiscordException {
@@ -41,6 +44,10 @@ public class DiscordBot {
 		
 		client = new ClientBuilder().withToken(token).login();
 		client.getDispatcher().registerListener(this);
+	}
+	
+	public boolean isDisconnected() {
+		return isDisconnected;
 	}
 	
 	private boolean loadSettings() {
@@ -82,6 +89,7 @@ public class DiscordBot {
 	@EventSubscriber
 	public void onDisconnect(DiscordDisconnectedEvent event) {
 		isReady = false;
+		isDisconnected = true;
 		main.createDiscordBotInstance();
 	}
 	
@@ -97,7 +105,7 @@ public class DiscordBot {
 		    if(message.getContent().startsWith("~linklimit ")) {
 		    	List<IRole> roles = message.getAuthor().getRolesForGuild(message.getGuild());
 		    	for(IRole role: roles) {
-		    		if(role.getName().equals("badmins"))
+		    		if(role.getName().equals("gladmins"))
 		    			isAdmin = true;
 		    	}
 		    	if(isAdmin) {
@@ -112,7 +120,7 @@ public class DiscordBot {
 		    		message.getChannel().sendMessage(message.getAuthor().getName() + ": you're not allowed to do that!");
 		    	}
 		    } else if (message.getContent().equalsIgnoreCase("~status")) {
-		    	message.getChannel()).sendMessage(
+		    	message.getChannel().sendMessage(
 		    			main.getDiscordStatusText(message.getAuthor().getName())
 		    		);
 		    } else if (message.getContent().equalsIgnoreCase("~addme")) {
@@ -178,7 +186,7 @@ public class DiscordBot {
 					message.getChannel().sendMessage(links);
 		    	}
 		    }
-	    } catch (MissingPermissionsException | HTTP429Exception | DiscordException e) {
+	    } catch (MissingPermissionsException | DiscordException | RateLimitException e) {
 	    		main.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit " + e.getClass(), null);
 	    }
 	}
@@ -186,15 +194,44 @@ public class DiscordBot {
 	@EventSubscriber
 	public void onReady(ReadyEvent event) {
 		isReady = true;
-		client.updatePresence(false, Optional.of("Spamming edits to be #1 bot on Wikia"));
+		client.changeStatus(Status.game("Spamming edits to be #1 bot on Wikia"));
 	}
 	
 	protected void sendMessage(String message) {
 		try {
-			if(isReady)
-				client.getChannelByID(channelID).sendMessage(message);
+			if(isReady) {
+				
+				if(rswGuild == null) {
+					List<IGuild> guilds = client.getGuilds();
+					for(IGuild guild: guilds) {
+						if(guild.getName().equalsIgnoreCase("RuneScape Wiki")) {
+							rswGuild = guild;
+							break;
+						}
+							
+					}
+				}
+				
+				if(rswGuild != null && wikiSquidsRole == null) {
+					List<IRole> guildRoles = rswGuild.getRoles();
+			    	for(IRole role: guildRoles) {
+			    		if(role.getName().equalsIgnoreCase("wiki squids")) {
+			    			wikiSquidsRole = role;
+			    			break;
+			    		}
+			    		
+			    	}
+				}
+				
+		    	if(wikiSquidsRole == null) {
+		    		System.out.println("wiki squids is not defined");
+		    		return;
+		    	} else {
+		    		client.getChannelByID(channelID).sendMessage(wikiSquidsRole.mention() + "\n" + message);
+		    	}
+			}
 			
-		} catch (HTTP429Exception e) {
+		} catch (RateLimitException e) {
 			main.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit HTTP429Exception - too many requests", null);
 		} catch (DiscordException e) {
 			main.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "DiscordBot hit DiscordException - miscellanious error", null);
@@ -262,7 +299,7 @@ public class DiscordBot {
 	public void quit() {
 		try {
 			client.logout();
-		} catch (HTTP429Exception | DiscordException e) {
+		} catch (RateLimitException | DiscordException e) {
 			System.out.println("Failed to log out");
 		}
 		
