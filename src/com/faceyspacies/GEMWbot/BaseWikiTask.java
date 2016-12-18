@@ -38,10 +38,13 @@ abstract class BaseWikiTask implements Runnable {
 	
 	protected boolean running;
 	
+	protected String timestamp;
+	
 	
 	BaseWikiTask(GEMWbot ircInstance) {
 		if(!loadSettings()) {
-			ircInstance.getTellBotInstance().addTell("gemwbot", "wikia/vstf/TyA", "failed to load config", null);
+			if(ircInstance != null)
+				ircInstance.getTellBotInstance().addTell("gemwbot", "wikia/vstf/TyA", "failed to load config", null);
 		};
 		
 		wikiBot = new Wiki(wikiURL, "");
@@ -51,8 +54,11 @@ abstract class BaseWikiTask implements Runnable {
 		wikiBot.setUsingCompressedRequests(false); // Wikia fails anywhere from 20-50 times a run on this
 		errorLog = "";
 		
-		ircChannel = ircInstance.getChannel();
-		this.ircInstance = ircInstance;
+		if(ircInstance != null) {
+			ircChannel = ircInstance.getChannel();
+			this.ircInstance = ircInstance;
+		}
+		timestamp = null;
 	
 	}
 	
@@ -173,7 +179,7 @@ abstract class BaseWikiTask implements Runnable {
 		HttpURLConnection request;
 		int newPrice = -1;
 		try {
-			
+				
 			request = (HttpURLConnection) url.openConnection();
 			request.setRequestProperty("User-Agent", "GEMWBot2 - The RuneScape Wiki's Grand Exchange Price Database Updater. https://github.com/ty-a/GEMWbot2");
 			request.connect();
@@ -186,32 +192,32 @@ abstract class BaseWikiTask implements Runnable {
 			JSONObject baseItem = new JSONObject(data);
 			JSONObject dailyItem = baseItem.getJSONObject("daily");
 			
-			Iterator<?> keys = dailyItem.keys();
-			int highestSoFar = 0;
-			int currNum;
-			Pattern getNumber = Pattern.compile("(\\d+)\\d\\d\\d");
-			
-			while(keys.hasNext()) {
-				String currKey = (String)keys.next();
-				Matcher verifyNum = getNumber.matcher(currKey);
-				if(verifyNum.find()) {
-					currKey = verifyNum.group(1);
-				} else {
-					System.out.println("[ERROR] Failed to find price in json");
-				}
+			if(timestamp == null) {
+				Iterator<?> keys = dailyItem.keys();
+				int highestSoFar = 0;
+				int currNum;
+				Pattern getNumber = Pattern.compile("(\\d+)\\d\\d\\d");
 				
-				currNum = Integer.parseInt(currKey);
-				
-				if(currNum > highestSoFar) {
-					highestSoFar = currNum;
+				while(keys.hasNext()) {
+					String currKey = (String)keys.next();
+					Matcher verifyNum = getNumber.matcher(currKey);
+					if(verifyNum.find()) {
+						currKey = verifyNum.group(1);
+					} else {
+						System.out.println("[ERROR] Failed to find price in json");
+					}
 					
-				} else
-					continue; 
+					currNum = Integer.parseInt(currKey);
+					
+					if(currNum > highestSoFar) {
+						highestSoFar = currNum;
+						
+					} else
+						continue; 
+				}
+				timestamp = highestSoFar + "";
 			}
-			String timestamp = highestSoFar + "";
-			String key = highestSoFar + "000";
-			
-			newPrice = dailyItem.getInt(key);
+			newPrice = dailyItem.getInt(timestamp + "000");
 			gePrice = new GEPrice(timestamp, newPrice, id);
 			
 		} catch (IOException e) {

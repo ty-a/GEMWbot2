@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import sx.blah.discord.util.DiscordException;
 import jerklib.Channel;
 import jerklib.ConnectionManager;
 import jerklib.Profile;
@@ -409,7 +408,6 @@ public class GEMWbot implements IRCEventListener
 							// If neither mode is running, just quit
 							if(!tieBotInstance.getWikiDiscussionsFeed() && !tieBotInstance.getNewUsersFeed()) {
 								rcSession.close("Requested by " + me.getNick());
-								tieBotInstance.cleanupBeforeQuit();
 								tieBotInstance = null;
 								return;
 							}
@@ -471,7 +469,6 @@ public class GEMWbot implements IRCEventListener
 							// If neither mode is running, just quit
 							if(!tieBotInstance.getWikiDiscussionsFeed() && !tieBotInstance.getNewUsersFeed()) {
 								rcSession.close("Requested by " + me.getNick());
-								tieBotInstance.cleanupBeforeQuit();
 								tieBotInstance = null;
 								return;
 							}

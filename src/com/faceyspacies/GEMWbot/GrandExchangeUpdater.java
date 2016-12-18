@@ -72,7 +72,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				addToLog(doUpdates(pages[i]), pages[i]);
 			
 				try {
-					Thread.sleep(3000);
+					Thread.sleep(2500);
 				} catch (InterruptedException e) {
 					ircInstance.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW", null);
 				}
@@ -80,7 +80,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				return;
 			}
 		}
-		
+		GEPricesString += "  ['TyBot updated'] = " + getTodaysEpochTimestamp() + ",\n";
 		GEPricesString = GEPricesString.substring(0, GEPricesString.length() - 2);
 		GEPricesString += "\n}"; 
 		
