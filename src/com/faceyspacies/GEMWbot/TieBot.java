@@ -5,12 +5,17 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.json.JSONObject;
 import org.wikipedia.Wiki;
 import org.wikipedia.Wiki.User;
 
@@ -34,16 +39,11 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	
 	private int ignoreThreshold;
 	
-//	private String dbHost;
-//	private String dbName;
-//	private String dbUser;
-//	private String dbPass;
 	private String feedChannel;
 	
-	private Wiki wiki = new Wiki("runescape.wikia.com", "");
+	private String webhookURL;
 	
-	//private Connection db;
-	//private PreparedStatement query;
+	private Wiki wiki = new Wiki("runescape.wikia.com", "");
 	
 	public TieBot(ConnectionManager manager, GEMWbot main) {
 		this.manager = manager;
@@ -53,15 +53,6 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		
 		loadSettings();
 		
-//		try {
-//			db = DriverManager.getConnection("jdbc:mysql://" + dbHost + "/" + dbName + "?useUnicode=true&characterEncoding=UTF-8", dbUser, dbPass);
-//			query = db.prepareStatement("INSERT INTO users(name, wiki) VALUES (?,?);");
-//			System.out.println("Created DB handler");
-//			
-//		} catch (SQLException e) {
-//			// TODO Auto-generated catch block
-//			e.printStackTrace();
-//		} 
 	}
 	
 	private boolean loadSettings() {
@@ -75,11 +66,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			settings.load(input);
 			
 			String temp;
-			
-//			dbHost = settings.getProperty("dbHost");
-//			dbName = settings.getProperty("dbName");
-//			dbUser = settings.getProperty("dbUser");
-//			dbPass = settings.getProperty("dbPass");
+			webhookURL = settings.getProperty("webhookURL");
 			feedChannel = settings.getProperty("feedChannel");
 			temp = settings.getProperty("ignoreThreshold");
 			
@@ -89,29 +76,13 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				ignoreThreshold = Integer.parseInt(temp);
 			}
 			
-			/*
-			if(dbHost == null) {
-				System.out.println("[ERROR] dbHost is missing from tiebot.properties; closing");
-				return false;
-			}
-			
-			if(dbName == null) {
-				System.out.println("[ERROR] dbName is missing from tiebot.properties; closing");
-				return false;
-			}
-			
-			if(dbUser == null) {
-				System.out.println("[ERROR] dbUser is missing from tiebot.properties;");
-			}
-			
-			if(dbPass == null) {
-				System.out.println("[ERROR] dbPass is missing from tiebot.properties; closing");
-				return false;
-			}
-			
-			*/
 			if(feedChannel == null) {
 				System.out.println("[ERROR] feedChannel is missing from tiebot.properties; closing");
+				return false;
+			}
+			
+			if(webhookURL == null) {
+				System.out.println("[ERROR] webhookURL is missing from tiebot.properties; closing");
 				return false;
 			}
 			
@@ -156,31 +127,125 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			}
 		}
 		
-		if(wikiDiscussionsFeed) {
-			processWikiDiscussions(message);
+		String wiki = message.substring(message.indexOf("http://") + 7, message.indexOf(".wikia"));
+		
+		if(wikiDiscussionsFeed && wiki.equals("runescape")) {
+			WikiChange change = formatMessage(message);
+			processWikiDiscussions(change);
 		}
 		
 	}
 	
+	private WikiChange formatMessage(String message) {
+		// [[Special:Log/delete]] delete http://ty.wikia.com/wiki/Special:Log/delete * TyA *  deleted "[[Exchange:Pirate's hook]]": housekeeping
+		// [[Special:Log/newusers]] create http://es.dofuswiki.wikia.com/wiki/Especial:Log/newusers * Juan157 *  New user account
+		// [[Special:Log/wikifeatures]] wikifeatures http://florielsand-school-of.wikia.com/wiki/Special:Log/wikifeatures * Hogwarts888 *  wikifeatures: set extension option: wgEnableAchievementsExt = true
+		// [[Special:Log/move]] move http://thomasandfriends.wikia.com/wiki/Special:Log/move * Thomasoldschool *  moved [[File:ThomasPercyandthePostTrain17.png]] to [[File:ThomasPercyandthePostTrain017.png]]
+		// [[Special:Log/protect]] protect http://english-voice-over.wikia.com/wiki/Special:Log/protect * Jade Cooper *  protected "[[The Star Wars Holiday Special (1978)]]" ‎[edit=sysop] (indefinite) ‎[move=sysop] (indefinite)
+		// [[Special:Log/useravatar]] avatar_chn http://community.wikia.com/wiki/Special:Log/useravatar * KaosuUzu *  User avatar added or updated
+		// [[Special:Log/upload]] overwrite http://h2o.wikia.com/wiki/Special:Log/upload * Mundo Comdilies *  uploaded a new version of "[[File:Cleo orange juice.png]]"
+		// [[Special:Log/upload]] upload http://marvel.wikia.com/wiki/Special:Log/upload * The Many-Angled One *  uploaded "[[File:Mighty Captain Marvel Vol 1 0 Noto Variant.jpg]]"
+		
+		// !NMB
+		// [[Hedorah vs B.O.B]] !N http://deathbattlefanon.wikia.com/index.php?oldid=581970&rcid=593468 * Vrokorta * (+29) Created page with "You're right, Hedorah stomps."
+		
+		
+		// If page starts with Special:Log, it is a long entry, else it is an edit. 
+		// If a log entry, next word is the log type.  If edit, next set is the flags (!(unpatrolled) New Minor Bot) Empty if none set
+		
+		String regex = "\\[\\[Special:Log\\/(\\w*)\\]\\] (\\w*) .* \\* (.*) \\* (.*)";
+		
+		
+		boolean isLog = message.startsWith("[[Special:Log/");
+		boolean isNew = false;
+		boolean isMinor = false;
+		boolean isBot = false;
+		String type = null;
+		String target = null;
+		String summary = null;
+		String performer = null;
+		String flags = null;
+		String diffNumber = null;
+		String diff = null;
+		
+		if(isLog) {
+			Pattern logregex = Pattern.compile(regex);
+			Matcher logRegexMatcher = logregex.matcher(message);
+			
+			if(logRegexMatcher.matches()) {
+				type = logRegexMatcher.group(2);
+				performer = logRegexMatcher.group(3);
+				
+				int start,end;
+				String temp;
+				
+				switch(type) {
+					case "delete":
+						temp = logRegexMatcher.group(4);
+						start = temp.indexOf("[[") + 2;
+						end = temp.indexOf("]]");
+						target = temp.substring(start, end);
+						
+						start = temp.indexOf(":", end);
+						if(start == -1) {
+							summary = "";
+						} else {
+							summary = temp.substring(start + 2);
+						}
+						break;
+						
+					case "upload":
+						isNew = logRegexMatcher.group(2).equals("upload");
+						temp = logRegexMatcher.group(4);
+						start = temp.indexOf("[[") + 2;
+						end = temp.indexOf("]]");
+						target = temp.substring(start, end);
+						
+						start = temp.indexOf(":", end);
+						if(start == -1) {
+							summary = "";
+						} else {
+							summary = temp.substring(start+2);
+						}
+						
+						break;
+						
+					default:
+						summary = logRegexMatcher.group(4);		
+				}
+				
+				WikiChange change = new WikiChange(isLog, isMinor, isBot, isNew, type, target, performer, summary, flags, diffNumber, diff);
+				return change;
+			}
+		} else {
+			type = "edit";
+			
+			String editRegex = "\\[\\[(.*)\\]\\] ([!NMB]{0,4}) (.*) \\* (.*) \\* \\((.*)\\) (.*)";
+			Pattern editregex = Pattern.compile(editRegex);
+			Matcher editRegexMatcher = editregex.matcher(message);
+			
+			if(editRegexMatcher.matches()) {
+				target = editRegexMatcher.group(1);
+				flags = editRegexMatcher.group(2);
+				
+				isBot = flags.contains("B");
+				isMinor = flags.contains("M");
+				isNew = flags.contains("N");
+				
+				diff = editRegexMatcher.group(3);
+				performer = editRegexMatcher.group(4);
+				diffNumber = editRegexMatcher.group(5);
+				summary = editRegexMatcher.group(6);
+				
+				return new WikiChange(isLog, isMinor, isBot, isNew, type, target, performer, summary, flags, diffNumber, diff);
+			}
+		}
+		
+		return null;
+	}
+
 	private void processNewUserMessage(String message) {
 		// [[Especial:Log/newusers]] create http://es.dofuswiki.wikia.com/wiki/Especial:Log/newusers * Juan157 *  New user account
-		String noColorsMessage = message.replaceAll("\\x1f|\\x02|\\x12|\\x0f|\\x16|\\x03(?:\\d{1,2}(?:,\\d{1,2})?)?", "");
-		String wiki = noColorsMessage.substring(noColorsMessage.indexOf("http://") + 7, noColorsMessage.indexOf(".wikia"));
-
-		int nameStart = noColorsMessage.indexOf(" * ") + 3;
-		int nameEnd = noColorsMessage.indexOf(" * ", nameStart);
-		String user = noColorsMessage.substring(nameStart, nameEnd);
-		
-//		if(db != null && query != null) {	
-//			try {
-//				query.setString(1, user);
-//				query.setString(2, wiki);
-//				
-//				query.execute();
-//			} catch (SQLException e) {
-//				System.out.printf("Unable to add %s@%s to the DB!%n", user, wiki);
-//			}
-//		}
 		
 		Session mainSession = manager.getSession("irc.freenode.net");
 		Channel channel = mainSession.getChannel("#cvn-wikia-newusers");
@@ -192,15 +257,9 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		channel.say(message);
 	}
 	
-	private void processWikiDiscussions(String message) {
+	private void processWikiDiscussions(WikiChange change) {
 		
-		String wiki;
-		String page;
-		String summary;
-		String user;
 		String fullWikiUrl;
-		String count;
-
 		if(isHushed) {
 			if(System.currentTimeMillis() > hushTime) {
 				isHushed = false;
@@ -208,39 +267,28 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				return;
 			}
 		}
+
+		sendToDiscord(change);
 		
-		page = message.substring(2, message.indexOf("]]"));
-		
-		if(!isFollowedPage(page))
+		if(change.getTarget() == null)
 			return;
 		
-		wiki = message.substring(message.indexOf("http://") + 7, message.indexOf(".wikia"));
-		
-		if(!isFollowedWiki(wiki))
+		if(!isFollowedPage(change.getTarget()))
 			return;
 		
-		fullWikiUrl = message.substring(message.indexOf("http://"), message.indexOf(" * "));
-		fullWikiUrl = processWikiUrl(fullWikiUrl);
+		fullWikiUrl = processWikiUrl(change.getDiff());
 		
-		int nameStart = message.indexOf(" * ") + 3;
-		int nameEnd = message.indexOf(" * ", nameStart);
-		user = message.substring(nameStart, nameEnd);
-		summary = message.substring(nameEnd + 3);
-		
-		count = summary.substring(2, summary.indexOf(")"));
-		
-		if(Integer.parseInt(count) < ignoreThreshold && !page.equals("RuneScape:Counter-Vandalism Unit") ) { // always show CVU edits
+		// the change has the symbol in front of it
+		if(Integer.parseInt(change.getChange().substring(1)) < ignoreThreshold && !change.getTarget().equals("RuneScape:Counter-Vandalism Unit") ) { // always show CVU edits
 			return;
 		}
 		
-		if(!isBotUser(user)) {
+		if(!change.isBot()) {
 			Session mainSession = manager.getSession("irc.freenode.net");
 			Channel channel = mainSession.getChannel(mainIRC.ircChannel);
 			if(channel == null)
 				return;
-			channel.say(page + " was edited by " + user + " | " + fullWikiUrl  + " | " + summary);
-			if(mainIRC.getDiscordBotInstance() != null)
-				mainIRC.getDiscordBotInstance().sendMessage(page + " | " + fullWikiUrl  + "\nEdited by " + user + ": " + summary);
+			channel.say(change.getTarget() + " was edited by " + change.getPerformer() + " | " + fullWikiUrl  + " | " + "(" + change.getChange() + ")" + change.getSummary());
 		}
 	}
 	
@@ -298,10 +346,11 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 
 		switch(page) {
 			case "RuneScape:User help":
-			case "RuneScape:Administrator requests":
+			case "RuneScape:Administrative requests":
 			case "RuneScape:AutoWikiBrowser/Requests":
 			case "RuneScape:Off-site/IRC/Bot requests":
 			case "RuneScape:Counter-Vandalism Unit":
+			case "RuneScape:The Wikian":
 				return true;
 		}
 		
@@ -353,15 +402,84 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		ignoreThreshold = newThreshold;
 	}
 	
-	protected void cleanupBeforeQuit() {
-//		try {
-//			if(db != null) {
-//				db.close();
-//			}
-//			
-//			if(query != null) {
-//				query.close();
-//			}
-//		} catch (SQLException e) { }
+	private void sendToDiscord(WikiChange change) {
+		String outmessage;
+		String formatString;
+		switch(change.getType()) {
+			case "edit":
+				if(change.isBot())
+					return;
+				
+				formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
+				formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) edited [%3$s](<http://runescape.wikia.com/wiki/%4$s>)";
+				formatString += " (%7$s) `%5$s ` ([diff](<%6$s>))";
+				
+				outmessage = String.format(formatString, change.getPerformer(), change.getPerformer().replace(" ", "_"), change.getTarget(),
+						change.getTarget().replace(" ", "_").replace(")", "\\)"), change.getSummary(), change.getDiff(), change.getChange());
+				
+				break;
+				
+			case "delete":
+				formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
+				formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) deleted [%3$s](<http://runescape.wikia.com/wiki/%4$s>)";
+				formatString += " (*%5$s*))";
+				
+				outmessage = String.format(formatString, change.getPerformer(), change.getPerformer().replace(" ", "_"), change.getTarget(),
+						change.getTarget().replace(" ", "_").replace(")", "\\)"), change.getSummary());
+				break;
+				
+			default:
+				if(change.getTarget() != null) {
+					formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
+					formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) %6$s [%3$s](<http://runescape.wikia.com/wiki/%4$s>)";
+					formatString += " (*%5$s*))";
+					
+					outmessage = String.format(formatString, change.getPerformer(), change.getPerformer().replace(" ", "_"), change.getTarget(),
+							change.getTarget().replace(" ", "_"), change.getSummary(),
+							change.getType());
+				} else {
+					formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
+					formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) %4$s ";
+					formatString += "(*%3$s*))";
+					
+					outmessage = String.format(formatString, change.getPerformer(), change.getPerformer().replace(" ", "_"), change.getSummary(),
+							change.getType());
+				}
+		}
+	
+		try {
+			String json = new JSONObject()
+					.put("content", outmessage)
+					.toString();
+			// http://stackoverflow.com/a/35013372
+			byte[] out = json.getBytes(StandardCharsets.UTF_8);
+			int length = out.length;
+			
+			URL url = new URL(webhookURL);
+			URLConnection con = url.openConnection();
+			HttpURLConnection http = (HttpURLConnection)con;
+			http.setRequestMethod("POST");
+			http.setDoOutput(true);
+			
+			http.setFixedLengthStreamingMode(length);
+			http.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+			http.setRequestProperty("User-Agent", "tybot #1 - http://github.com/ty-a/GEMWbot2 - @ty#0768");
+			
+			try(OutputStream os = http.getOutputStream()) {
+			    os.write(out);
+			}
+
+			
+			//System.out.println(http.getResponseCode());
+
+			http.disconnect();
+			
+		} catch (MalformedURLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 }
