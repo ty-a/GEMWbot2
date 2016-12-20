@@ -405,44 +405,110 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	private void sendToDiscord(WikiChange change) {
 		String outmessage;
 		String formatString;
+		String summary;
+		
+		formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
+		formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) ";
+		String start = String.format(formatString, change.getPerformer(), change.getPerformer().replaceAll(" ", "_"));
+		
 		switch(change.getType()) {
 			case "edit":
 				if(change.isBot())
 					return;
 				
-				formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
-				formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) edited [%3$s](<http://runescape.wikia.com/wiki/%4$s>)";
-				formatString += " (%7$s) `%5$s ` ([diff](<%6$s>))";
+				formatString = start + "edited [%1$s](<http://runescape.wikia.com/wiki/%2$s>)";
+				formatString += " (%5$s) `%3$s ` ([diff](<%4$s>))";
 				
-				outmessage = String.format(formatString, change.getPerformer(), change.getPerformer().replace(" ", "_"), change.getTarget(),
+				outmessage = String.format(formatString, change.getTarget(),
 						change.getTarget().replace(" ", "_").replace(")", "\\)"), change.getSummary(), change.getDiff(), change.getChange());
 				
 				break;
 				
 			case "delete":
-				formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
-				formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) deleted [%3$s](<http://runescape.wikia.com/wiki/%4$s>)";
-				formatString += " (*%5$s*))";
+				formatString = start + "deleted [%1$s](<http://runescape.wikia.com/wiki/%2$s>)";
+				formatString += " `%3$s `";
 				
-				outmessage = String.format(formatString, change.getPerformer(), change.getPerformer().replace(" ", "_"), change.getTarget(),
+				outmessage = String.format(formatString, change.getTarget(),
 						change.getTarget().replace(" ", "_").replace(")", "\\)"), change.getSummary());
+				break;
+				
+			case "move":
+				//  moved [[Ice Bow]] to [[Ice bow]]: Actual in-game capitalisation.
+				summary = change.getSummary();
+				int pgstart, pgend;
+				pgstart = summary.indexOf("[[") + 2;
+				pgend = summary.indexOf("]]");
+				String page1 = summary.substring(pgstart, pgend);
+				
+				pgstart = summary.indexOf("[[", pgstart) + 2;
+				pgend = summary.indexOf("]]", pgend + 1);
+				String page2 = summary.substring(pgstart, pgend);
+				
+				int summarystart = summary.indexOf(":", pgend);
+				if(summarystart == -1) {
+					summary = "";
+				} else {
+					summary = summary.substring(summarystart + 1);
+				}
+				
+				formatString = start + "moved %1$s to [%2$s](<http://runescape.wikia.com/wiki/%3$s>) `%4$s `";
+				
+				outmessage = String.format(formatString, page1, page2, page2.replaceAll(" ",  "_"), summary);
+				break;
+				
+			case "avatar_chn":
+				outmessage = start + " changed their avatar!";
+				break;
+				
+			case "upload":
+				formatString = start + "uploaded [%1$s](<http://runescape.wikia.com/wiki/%2$s>)";
+				formatString += " `%3$s `";
+				
+				outmessage = String.format(formatString, change.getTarget(),
+						change.getTarget().replace(" ", "_"), change.getSummary());
+				
+				break;
+				
+			case "overwrite":
+				// uploaded a new version of "[[File:Opal bracelet detail.png]]": Transparency
+				summary = change.getSummary();
+				pgstart = summary.indexOf("[[") + 2;
+				pgend = summary.indexOf("]]");
+				String page = summary.substring(pgstart, pgend);
+				
+				summarystart = summary.indexOf(":", pgend);
+				if(summarystart == -1) {
+					summary = "";
+				} else {
+					summary = summary.substring(summarystart + 1);
+				}
+				
+				formatString = start + "uploaded a new version of [%1$s](<http://runescape.wikia.com/wiki/%2$s>) `%3$s `";
+				outmessage = String.format(formatString, page, page.replaceAll(" ", "_"), summary);
+				break;
+				
+			case "block":
+			case "unblock":
+			case "rights":
+			case "chatban":
+			case "chatbanremove":
+				
+				outmessage = start + "`" + change.getSummary() + " `";
 				break;
 				
 			default:
 				if(change.getTarget() != null) {
-					formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
-					formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) %6$s [%3$s](<http://runescape.wikia.com/wiki/%4$s>)";
-					formatString += " (*%5$s*))";
+					formatString = start + "%4$s [%1$s](<http://runescape.wikia.com/wiki/%2$s>)";
+					formatString += " `%3$s `";
 					
-					outmessage = String.format(formatString, change.getPerformer(), change.getPerformer().replace(" ", "_"), change.getTarget(),
+					outmessage = String.format(formatString, change.getTarget(),
 							change.getTarget().replace(" ", "_"), change.getSummary(),
 							change.getType());
 				} else {
-					formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
-					formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) %4$s ";
-					formatString += "(*%3$s*))";
+					formatString = start + "%2$s ";
+					formatString += "`%1$s `";
 					
-					outmessage = String.format(formatString, change.getPerformer(), change.getPerformer().replace(" ", "_"), change.getSummary(),
+					outmessage = String.format(formatString, change.getSummary(),
 							change.getType());
 				}
 		}
