@@ -16,8 +16,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.json.JSONObject;
-import org.wikipedia.Wiki;
-import org.wikipedia.Wiki.User;
+
+import com.faceyspacies.GEMWbot.Holders.WikiChange;
 
 import jerklib.Channel;
 import jerklib.ConnectionManager;
@@ -42,8 +42,8 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	private String feedChannel;
 	
 	private String webhookURL;
-	
-	private Wiki wiki = new Wiki("runescape.wikia.com", "");
+	private String ptbrWebhookURL;
+	private String osWebhookURL;
 	
 	public TieBot(ConnectionManager manager, GEMWbot main) {
 		this.manager = manager;
@@ -67,6 +67,8 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			
 			String temp;
 			webhookURL = settings.getProperty("webhookURL");
+			ptbrWebhookURL = settings.getProperty("ptbrWebhookURL");
+			osWebhookURL = settings.getProperty("osWebhookURL");
 			feedChannel = settings.getProperty("feedChannel");
 			temp = settings.getProperty("ignoreThreshold");
 			
@@ -112,7 +114,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		}
 	}
 	
-	public void processMessage(MessageEvent e) {
+	private void processMessage(MessageEvent e) {
 		// We are only interested in the feed, not other things
 		if(!e.getNick().equals("rcbot"))
 			return;
@@ -129,7 +131,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		
 		String wiki = message.substring(message.indexOf("http://") + 7, message.indexOf(".wikia"));
 		
-		if(wikiDiscussionsFeed && wiki.equals("runescape")) {
+		if(wikiDiscussionsFeed && isFollowedWiki(wiki)) {
 			WikiChange change = formatMessage(message);
 			processWikiDiscussions(change);
 		}
@@ -153,10 +155,11 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		// If page starts with Special:Log, it is a long entry, else it is an edit. 
 		// If a log entry, next word is the log type.  If edit, next set is the flags (!(unpatrolled) New Minor Bot) Empty if none set
 		
-		String regex = "\\[\\[Special:Log\\/(\\w*)\\]\\] (\\w*) .* \\* (.*) \\* (.*)";
+		// old regex which doesn't capture wiki domain
+		//String regex = "\\[\\[Special:Log\\/(\\w*)\\]\\] (\\w*) .* \\* (.*) \\* (.*)";
+		String regex = "\\[\\[E?[Ss]pecial:Log\\/(\\w*)\\]\\] (\\w*) http:\\/\\/(.*)\\.wikia.* \\* (.*) \\* (.*)";
 		
-		
-		boolean isLog = message.startsWith("[[Special:Log/");
+		boolean isLog = message.startsWith("[[Special:Log/") || message.startsWith("[[Especial:Log/");
 		boolean isNew = false;
 		boolean isMinor = false;
 		boolean isBot = false;
@@ -167,6 +170,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		String flags = null;
 		String diffNumber = null;
 		String diff = null;
+		String wiki = null;
 		
 		if(isLog) {
 			Pattern logregex = Pattern.compile(regex);
@@ -174,14 +178,14 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			
 			if(logRegexMatcher.matches()) {
 				type = logRegexMatcher.group(2);
-				performer = logRegexMatcher.group(3);
-				
+				performer = logRegexMatcher.group(4);
+				wiki = logRegexMatcher.group(3);
 				int start,end;
 				String temp;
 				
 				switch(type) {
 					case "delete":
-						temp = logRegexMatcher.group(4);
+						temp = logRegexMatcher.group(5);
 						start = temp.indexOf("[[") + 2;
 						end = temp.indexOf("]]");
 						target = temp.substring(start, end);
@@ -196,7 +200,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 						
 					case "upload":
 						isNew = logRegexMatcher.group(2).equals("upload");
-						temp = logRegexMatcher.group(4);
+						temp = logRegexMatcher.group(5);
 						start = temp.indexOf("[[") + 2;
 						end = temp.indexOf("]]");
 						target = temp.substring(start, end);
@@ -211,33 +215,36 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 						break;
 						
 					default:
-						summary = logRegexMatcher.group(4);		
+						summary = logRegexMatcher.group(5);		
 				}
 				
-				WikiChange change = new WikiChange(isLog, isMinor, isBot, isNew, type, target, performer, summary, flags, diffNumber, diff);
+				WikiChange change = new WikiChange(isLog, isMinor, isBot, isNew, type, target, performer, summary, flags, diffNumber, diff, wiki);
 				return change;
 			}
 		} else {
 			type = "edit";
 			
-			String editRegex = "\\[\\[(.*)\\]\\] ([!NMB]{0,4}) (.*) \\* (.*) \\* \\((.*)\\) (.*)";
+			// old regex which doesn't capture wiki domain
+			//String editRegex = "\\[\\[(.*)\\]\\] ([!NMB]{0,4}) (.*) \\* (.*) \\* \\((.*)\\) (.*)";
+			String editRegex = "\\[\\[(.*)\\]\\] ([!NMB]{0,4}) (http:\\/\\/(.*).wikia.*) \\* (.*) \\* \\((.*)\\) (.*)";
 			Pattern editregex = Pattern.compile(editRegex);
 			Matcher editRegexMatcher = editregex.matcher(message);
 			
 			if(editRegexMatcher.matches()) {
 				target = editRegexMatcher.group(1);
 				flags = editRegexMatcher.group(2);
+				wiki = editRegexMatcher.group(4);
 				
 				isBot = flags.contains("B");
 				isMinor = flags.contains("M");
 				isNew = flags.contains("N");
 				
 				diff = editRegexMatcher.group(3);
-				performer = editRegexMatcher.group(4);
-				diffNumber = editRegexMatcher.group(5);
-				summary = editRegexMatcher.group(6);
+				performer = editRegexMatcher.group(5);
+				diffNumber = editRegexMatcher.group(6);
+				summary = editRegexMatcher.group(7);
 				
-				return new WikiChange(isLog, isMinor, isBot, isNew, type, target, performer, summary, flags, diffNumber, diff);
+				return new WikiChange(isLog, isMinor, isBot, isNew, type, target, performer, summary, flags, diffNumber, diff, wiki);
 			}
 		}
 		
@@ -269,6 +276,10 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		}
 
 		sendToDiscord(change);
+		// only process discussions on the RS Wiki
+		if(!change.getWiki().equals("runescape")) {
+			return;
+		}
 		
 		if(change.getTarget() == null)
 			return;
@@ -305,11 +316,11 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		return fullWikiUrl;
 	}
 
-	public boolean isFollowedWiki(String wiki) {
-		return(wiki.equalsIgnoreCase("runescape"));
+	private boolean isFollowedWiki(String wiki) {
+		return(wiki.equalsIgnoreCase("pt-br.runescape") || wiki.equalsIgnoreCase("runescape"));
 	}
 	
-	public boolean isFollowedPage(String page) {
+	private boolean isFollowedPage(String page) {
 		// we follow all forum pages
 		if(page.startsWith("Forum:"))
 			return true;
@@ -357,22 +368,6 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		return false;
 	}
 	
-	public boolean isBotUser(String user) {
-		try {
-			User target = wiki.getUser(user.trim());
-			
-			if(target == null) { // an IP, can't be a bot
-				return false;
-			}
-			
-			return target.isA("bot");
-		} catch (IOException e) {
-			// if we fail to get it due to network error, 
-			// I'm willing to just assume it isn't a bot
-			return false;
-		}
-	}
-	
 	protected void setNewUsersFeed(boolean newMode) {
 		newUsersFeed = newMode;
 	}
@@ -406,9 +401,10 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		String outmessage;
 		String formatString;
 		String summary;
+		String wikiURL = "http://" + change.getWiki() + ".wikia.com/wiki/";
 		
-		formatString = "[%1$s](<http://runescape.wikia.com/wiki/User:%2$s>) ([t](<http://runescape.wikia.com/wiki/User_talk:%2$s>)";
-		formatString += "|[c](<http://runescape.wikia.com/wiki/Special:Contributions/%2$s>)) ";
+		formatString = "[%1$s](<" + wikiURL + "User:%2$s>) ([t](<" + wikiURL + "User_talk:%2$s>)";
+		formatString += "|[c](<" + wikiURL + "Special:Contributions/%2$s>)) ";
 		String start = String.format(formatString, change.getPerformer(), change.getPerformer().replaceAll(" ", "_"));
 		
 		switch(change.getType()) {
@@ -416,7 +412,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				if(change.isBot())
 					return;
 				
-				formatString = start + "edited [%1$s](<http://runescape.wikia.com/wiki/%2$s>)";
+				formatString = start + "edited [%1$s](<" + wikiURL + "%2$s>)";
 				formatString += " (%5$s) `%3$s ` ([diff](<%4$s>))";
 				
 				outmessage = String.format(formatString, change.getTarget(),
@@ -425,7 +421,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				break;
 				
 			case "delete":
-				formatString = start + "deleted [%1$s](<http://runescape.wikia.com/wiki/%2$s>)";
+				formatString = start + "deleted [%1$s](<" + wikiURL + "%2$s>)";
 				formatString += " `%3$s `";
 				
 				outmessage = String.format(formatString, change.getTarget(),
@@ -451,7 +447,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 					summary = summary.substring(summarystart + 1);
 				}
 				
-				formatString = start + "moved %1$s to [%2$s](<http://runescape.wikia.com/wiki/%3$s>) `%4$s `";
+				formatString = start + "moved %1$s to [%2$s](<" + wikiURL + "%3$s>) `%4$s `";
 				
 				outmessage = String.format(formatString, page1, page2, page2.replaceAll(" ",  "_"), summary);
 				break;
@@ -461,7 +457,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				break;
 				
 			case "upload":
-				formatString = start + "uploaded [%1$s](<http://runescape.wikia.com/wiki/%2$s>)";
+				formatString = start + "uploaded [%1$s](<" + wikiURL + "%2$s>)";
 				formatString += " `%3$s `";
 				
 				outmessage = String.format(formatString, change.getTarget(),
@@ -483,7 +479,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 					summary = summary.substring(summarystart + 1);
 				}
 				
-				formatString = start + "uploaded a new version of [%1$s](<http://runescape.wikia.com/wiki/%2$s>) `%3$s `";
+				formatString = start + "uploaded a new version of [%1$s](<" + wikiURL + "%2$s>) `%3$s `";
 				outmessage = String.format(formatString, page, page.replaceAll(" ", "_"), summary);
 				break;
 				
@@ -498,7 +494,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				
 			default:
 				if(change.getTarget() != null) {
-					formatString = start + "%4$s [%1$s](<http://runescape.wikia.com/wiki/%2$s>)";
+					formatString = start + "%4$s [%1$s](<" + wikiURL + "%2$s>)";
 					formatString += " `%3$s `";
 					
 					outmessage = String.format(formatString, change.getTarget(),
@@ -521,25 +517,55 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			byte[] out = json.getBytes(StandardCharsets.UTF_8);
 			int length = out.length;
 			
-			URL url = new URL(webhookURL);
-			URLConnection con = url.openConnection();
-			HttpURLConnection http = (HttpURLConnection)con;
-			http.setRequestMethod("POST");
-			http.setDoOutput(true);
-			
-			http.setFixedLengthStreamingMode(length);
-			http.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
-			http.setRequestProperty("User-Agent", "tybot #1 - http://github.com/ty-a/GEMWbot2 - @ty#0768");
-			
-			try(OutputStream os = http.getOutputStream()) {
-			    os.write(out);
+			URL url = null;
+			switch(change.getWiki()) {
+			case "runescape":
+				url = new URL(webhookURL);
+				break;
+			case "pt-br.runescape":
+				url = new URL(ptbrWebhookURL);
+				break;
+			case "2007.runescape":
+				url = new URL(osWebhookURL);
+			default:
+				System.out.println("[ERROR] Unknown wiki: " + change.getWiki());
+				return;
 			}
-
 			
-			//System.out.println(http.getResponseCode());
-
-			http.disconnect();
-			
+			int tries = 0; 
+			while(tries < 3) {
+				tries++;
+				URLConnection con = url.openConnection();
+				HttpURLConnection http = (HttpURLConnection)con;
+				http.setRequestMethod("POST");
+				http.setDoOutput(true);
+				
+				http.setFixedLengthStreamingMode(length);
+				http.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+				http.setRequestProperty("User-Agent", "tybot #1 - http://github.com/ty-a/GEMWbot2 - @ty#0768");
+				
+				try(OutputStream os = http.getOutputStream()) {
+				    os.write(out);
+				}
+	
+				if(http.getResponseCode() == 200 || http.getResponseCode() == 204 || http.getResponseCode() == 201) {
+					http.disconnect();
+					break;
+				} else if(http.getResponseCode() == 400) {
+					System.out.println("Invalid payload send to discord!");
+					System.out.println(json);
+					break;
+				} else {
+					http.disconnect();
+					try {
+						System.out.println("failed to send");
+						Thread.sleep(500);
+					} catch (InterruptedException e) {}
+				}
+				//System.out.println(http.getResponseCode());
+	
+				
+			}
 		} catch (MalformedURLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
