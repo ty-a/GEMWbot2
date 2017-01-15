@@ -19,6 +19,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.wikipedia.Wiki;
 
+import com.faceyspacies.GEMWbot.Holders.GEPrice;
+
 public class UpdateChecker implements Runnable {
 	private String wikiUserName;
 	private String wikiUserPass;

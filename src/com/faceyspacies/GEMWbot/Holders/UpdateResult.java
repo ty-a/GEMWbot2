@@ -1,10 +1,10 @@
-package com.faceyspacies.GEMWbot;
+package com.faceyspacies.GEMWbot.Holders;
 
 public class UpdateResult {
 	private String result;
 	private boolean success;
 	
-	UpdateResult(String result, boolean success) {
+	public UpdateResult(String result, boolean success) {
 		this.result = result;
 		this.success = success;
 	}

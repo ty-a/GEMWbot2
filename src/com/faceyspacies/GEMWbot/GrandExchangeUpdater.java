@@ -9,6 +9,10 @@ import javax.security.auth.login.LoginException;
 
 import org.wikipedia.Wiki;
 
+import com.faceyspacies.GEMWbot.Exceptions.PriceIsZeroException;
+import com.faceyspacies.GEMWbot.Holders.GEPrice;
+import com.faceyspacies.GEMWbot.Holders.UpdateResult;
+
 public class GrandExchangeUpdater extends BaseWikiTask {
 	// This class will be run from GEMWbot to start the GE updates
 	// It will run it its own thread and once it is done, it will be destroyed

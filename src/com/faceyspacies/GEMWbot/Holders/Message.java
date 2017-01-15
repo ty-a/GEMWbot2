@@ -1,11 +1,11 @@
-package com.faceyspacies.GEMWbot;
+package com.faceyspacies.GEMWbot.Holders;
 
 public class Message {
 	private String sender;
 	private String message;
 	private String timestamp;
 	
-	Message(String sender, String message, String timestamp) {
+	public Message(String sender, String message, String timestamp) {
 		this.sender = sender;
 		this.message = message;
 		this.timestamp = timestamp;

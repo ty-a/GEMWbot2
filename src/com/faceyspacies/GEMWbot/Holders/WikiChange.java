@@ -1,4 +1,4 @@
-package com.faceyspacies.GEMWbot;
+package com.faceyspacies.GEMWbot.Holders;
 
 public class WikiChange {
 	private boolean isLog;
@@ -14,8 +14,9 @@ public class WikiChange {
 	private String flags;
 	private String change;
 	private String diff;
+	private String wiki;
 	
-	WikiChange(boolean isLog, boolean isMinor, boolean isBot, boolean isNew, String type, String target, String performer, String summary, String flags, String change, String diff) {
+	public WikiChange(boolean isLog, boolean isMinor, boolean isBot, boolean isNew, String type, String target, String performer, String summary, String flags, String change, String diff, String wiki) {
 		this.isLog = isLog;
 		this.isMinor = isMinor;
 		this.isBot = isBot;
@@ -27,6 +28,7 @@ public class WikiChange {
 		this.flags = flags;
 		this.change = change;
 		this.diff = diff;
+		this.wiki = wiki;
 	}
 	
 	public String getFlags() {
@@ -71,6 +73,10 @@ public class WikiChange {
 	
 	public String getSummary() {
 		return summary;
+	}
+	
+	public String getWiki() {
+		return wiki;
 	}
 	
 	

@@ -22,6 +22,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.wikipedia.Wiki;
 
+import com.faceyspacies.GEMWbot.Holders.GEPrice;
+import com.faceyspacies.GEMWbot.Holders.UpdateResult;
+
 abstract class BaseWikiTask implements Runnable {
 	
 	protected String wikiUserName;

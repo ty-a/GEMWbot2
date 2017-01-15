@@ -1,4 +1,4 @@
-package com.faceyspacies.GEMWbot;
+package com.faceyspacies.GEMWbot.Holders;
 
 public class GEPrice {
 	private String timestamp;

@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
+import com.faceyspacies.GEMWbot.Holders.Message;
+
 import jerklib.events.IRCEvent;
 import jerklib.events.JoinEvent;
 import jerklib.events.MessageEvent;

@@ -1,4 +1,4 @@
-package com.faceyspacies.GEMWbot;
+package com.faceyspacies.GEMWbot.Exceptions;
 
 public class PriceIsZeroException extends Exception {
 

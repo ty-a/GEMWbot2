@@ -46,7 +46,7 @@ public class GEMWbot implements IRCEventListener
 	private TieBot tieBotInstance;
 	private TellBot tellBotInstance;
 	private UpdateChecker checker;
-	private DiscordBot discordBotInstance;
+	//private DiscordBot discordBotInstance;
 	
 	private GrandExchangeUpdater updateTask;
  
@@ -273,11 +273,11 @@ public class GEMWbot implements IRCEventListener
 					if(updateTask != null) {
 						updateTask.stopRunning();
 					}
-					
+					/*
 					if(discordBotInstance != null) {
 						discordBotInstance.quit();
 					}
-					
+					*/
 					System.exit(0);
 					
 					
@@ -706,7 +706,7 @@ public class GEMWbot implements IRCEventListener
 	public TellBot getTellBotInstance() {
 		return tellBotInstance;
 	}
-	
+	/*
 	public DiscordBot getDiscordBotInstance() {
 		if(discordBotInstance == null) {
 			return null;
@@ -716,7 +716,7 @@ public class GEMWbot implements IRCEventListener
 		}
 		return discordBotInstance;
 	}
-	
+	*/
 	public TieBot getTieBotinstance() {
 		return tieBotInstance;
 	}
@@ -736,8 +736,8 @@ public class GEMWbot implements IRCEventListener
 		}
 		
 		out += "Uptime: " + getUptime() + " TieBot: " + (enableTieBot? "on": "off") 
-				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
-				+ ((discordBotInstance == null)? "on": "off");
+				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: ";
+				//+ ((discordBotInstance == null)? "on": "off");
 		
 		return out;
 		
@@ -754,6 +754,7 @@ public class GEMWbot implements IRCEventListener
 		return uptime;
 	}
 	
+	/*
 	public String getDiscordStatusText(String nick) {
 		
 		String out = "";
@@ -770,4 +771,5 @@ public class GEMWbot implements IRCEventListener
 		
 		return out;
 	}
+	*/
 }
