@@ -41,6 +41,7 @@ public class GEMWbot implements IRCEventListener
 	protected boolean enableTieBotNewUsers;
 	protected boolean enableTellBot;
 	protected boolean enableDiscordBot;
+	protected boolean enableChecker;
 	private Session session;
 	private Session rcSession;
 	private TieBot tieBotInstance;
@@ -72,6 +73,10 @@ public class GEMWbot implements IRCEventListener
 		
 		if(enableDiscordBot) {
 			createDiscordBotInstance();
+		}
+		
+		if(enableChecker) {
+			startChecker();
 		}
 		
 	}
@@ -125,6 +130,12 @@ public class GEMWbot implements IRCEventListener
 				enableDiscordBot = false;
 			else
 				enableDiscordBot = temp.equals("true") ? true : false;
+			
+			temp = ircSettings.getProperty("enableChecker");
+			if(temp == null) 
+				enableChecker = false;
+			else
+				enableChecker = temp.equals("true") ? true : false;
 			
 			if(ircNick == null) {
 				System.out.println("[ERROR] ircNick is missing from irc.properties; closing");
@@ -188,21 +199,23 @@ public class GEMWbot implements IRCEventListener
 		else if (e.getType() == Type.CHANNEL_MESSAGE)
 		{
 			MessageEvent me = (MessageEvent) e;
-			if(me.getMessage().contains("The Grand Exchange has been updated. RuneScript last detected an update") && 
-					me.getNick().contains("RuneScript")) {
-
-				Channel channel = e.getSession().getChannel(ircChannel);
-				channel.say("Starting GE Updates!");
-				try {
-					if(updateTask == null) {
-						updateTask = new GrandExchangeUpdater(this);
-						Thread thread = new Thread(updateTask);
-						thread.start();
-					} else {
-						channel.say("HALP! RUNESCRIPT DETECTED AN UPDATE WHILE I WAS ALREADY UPDATING; FREAKING OUT MAN");
+			if(!enableChecker) {
+				if(me.getMessage().contains("The Grand Exchange has been updated. RuneScript last detected an update") && 
+						me.getNick().contains("RuneScript")) {
+	
+					Channel channel = e.getSession().getChannel(ircChannel);
+					channel.say("Starting GE Updates!");
+					try {
+						if(updateTask == null) {
+							updateTask = new GrandExchangeUpdater(this);
+							Thread thread = new Thread(updateTask);
+							thread.start();
+						} else {
+							channel.say("HALP! RUNESCRIPT DETECTED AN UPDATE WHILE I WAS ALREADY UPDATING; FREAKING OUT MAN");
+						}
+					} catch (Exception err) {
+						channel.say("Failed to start GE Updater.");
 					}
-				} catch (Exception err) {
-					channel.say("Failed to start GE Updater.");
 				}
 			}
 			
@@ -273,6 +286,10 @@ public class GEMWbot implements IRCEventListener
 					if(updateTask != null) {
 						updateTask.stopRunning();
 					}
+					
+					if(checker != null) {
+						checker.stopRunning();
+					}
 					/*
 					if(discordBotInstance != null) {
 						discordBotInstance.quit();
@@ -318,6 +335,7 @@ public class GEMWbot implements IRCEventListener
 						updateTask = new GrandExchangeUpdater(this);
 						Thread thread = new Thread(updateTask);
 						thread.start();
+						checker.stopRunning();
 					} catch (Exception err) {
 						channel.say("Failed to start GE Updater.");
 					}
@@ -609,6 +627,7 @@ public class GEMWbot implements IRCEventListener
 			ircSettings.setProperty("enableDiscordBot", "" + enableDiscordBot);
 			ircSettings.setProperty("feedNetwork", feedNetwork);
 			ircSettings.setProperty("feedPort", "" + feedPort);
+			ircSettings.setProperty("enableChecker", "" + enableChecker);
 			
 			ircSettings.store(output, "GEMWbot's IRC Settings");
 			
@@ -659,10 +678,12 @@ public class GEMWbot implements IRCEventListener
 	}
 	
 	public void startChecker() {
-		if(checker == null) {
-			checker = new UpdateChecker(this);
-			Thread checkerThread = new Thread(checker);
-			checkerThread.start();
+		if(enableChecker) {
+			if(checker == null) {
+				checker = new UpdateChecker(this);
+				Thread checkerThread = new Thread(checker);
+				checkerThread.start();
+			}
 		}
 	}
 	
@@ -736,8 +757,8 @@ public class GEMWbot implements IRCEventListener
 		}
 		
 		out += "Uptime: " + getUptime() + " TieBot: " + (enableTieBot? "on": "off") 
-				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: ";
-				//+ ((discordBotInstance == null)? "on": "off");
+				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Update Checker: "
+				+ ((checker == null)? "on": "off");
 		
 		return out;
 		

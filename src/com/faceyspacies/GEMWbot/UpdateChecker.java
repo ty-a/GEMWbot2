@@ -33,7 +33,7 @@ public class UpdateChecker implements Runnable {
 	
 	private GEMWbot ircInstance;
 	
-	UpdateChecker(GEMWbot ircInstance) {
+	public UpdateChecker(GEMWbot ircInstance) {
 		if(!loadSettings()) {
 			return;
 		};
@@ -47,6 +47,10 @@ public class UpdateChecker implements Runnable {
 		wikiBot.setUsingCompressedRequests(false);
 	}
 	
+	/**
+	 * Loads settings from the gemw.properties file. 
+	 * @return boolean based on success
+	 */
 	private boolean loadSettings() {
 		Properties settings = new Properties();
 		InputStream input = null;
@@ -89,6 +93,13 @@ public class UpdateChecker implements Runnable {
 		
 	}
 	
+	/**
+	 * Loads the current price from the Jagex Graph API. 
+	 * @param id The item ID that corresponds to the item you want to load the price for. 
+	 * Usually obtained by parsing the item's Exchange:Module/itemName page.
+	 * @return GEPrice object containing the item's price, ID, and timestamp. 
+	 * @throws MalformedURLException only an issue if you provide a bad item id. 
+	 */
 	private GEPrice loadCurPrice(String  id) throws MalformedURLException {
 
 		URL url = new URL(rsGraphAPILink + id + ".json");
@@ -100,7 +111,7 @@ public class UpdateChecker implements Runnable {
 		try {
 			
 			request = (HttpURLConnection) url.openConnection();
-			request.setRequestProperty("User-Agent", "OSGEMWBot2 - The 2007 RuneScape Wiki's Grand Exchange Price Database Updater. https://github.com/ty-a/GEMWbot2");
+			request.setRequestProperty("User-Agent", "GEMWBot2 - The RuneScape Wiki's Grand Exchange Price Database Updater. https://github.com/ty-a/GEMWbot2");
 			request.connect();
 			
 			BufferedReader response = new BufferedReader(new InputStreamReader(request.getInputStream()));
@@ -150,6 +161,11 @@ public class UpdateChecker implements Runnable {
 		return gePrice;
 	}
 	
+	/**
+	 * Loads the current price for itemName from the wiki.
+	 * @param itemName This is actually the entire page name. So Module:Exchange/itemName should be passed.
+	 * @return The item's price as a string. 
+	 */
 	private String loadPriceFromWiki(String itemName) {
 		
 		String pageContent;
@@ -162,7 +178,7 @@ public class UpdateChecker implements Runnable {
 			if(priceMatcher.find()) {
 				price = priceMatcher.group(1);
 			} else {
-				System.out.println("[ERROR] unable to load item id");
+				System.out.println("[ERROR] unable to load item price");
 				return null;
 
 			}
@@ -177,6 +193,9 @@ public class UpdateChecker implements Runnable {
 	}
 
 	@Override
+	/**
+	 * Called when starting the thread. Set the running global and catch any exceptions we get.
+	 */
 	public void run() {
 		running = true;
 		
@@ -186,9 +205,15 @@ public class UpdateChecker implements Runnable {
 			System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
 			err.printStackTrace();
 			ircInstance.setCheckerToNull();
+			ircInstance.getTellBotInstance().addTell("UpdateChecker", "wikia/vstf/TyA", "Error: " + err.getClass() + ": " + err.getMessage(), null);
 		}
 	}
 	
+	/**
+	 * The main loop of the update checker. Wait 10 minutes, then see if the Jagex Graph API has a different price for the Abyssal
+	 * whip than currently stored on the wiki. If so, start the GE Updater and stop running the checker. After the GE update is finished
+	 * it restarts the update checker.  
+	 */
 	private void Start() {
 		while(running) {
 			try {
@@ -219,6 +244,9 @@ public class UpdateChecker implements Runnable {
 
 	}
 	
+	/**
+	 * Stops the update checker. Does not stop a GE update if it has started. 
+	 */
 	protected void stopRunning() {
 		running = false;
 	}

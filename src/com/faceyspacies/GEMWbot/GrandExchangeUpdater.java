@@ -99,6 +99,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		updateLogPage();
 
 		ircInstance.setUpdateTaskToNull();
+		ircInstance.startChecker();
 		ircInstance.sendMessage(ircChannel, "GE Updates complete!"); // if we make it to end, we did it
 	}
 

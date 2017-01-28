@@ -317,7 +317,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 	}
 
 	private boolean isFollowedWiki(String wiki) {
-		return(wiki.equalsIgnoreCase("pt-br.runescape") || wiki.equalsIgnoreCase("runescape"));
+		return(wiki.equalsIgnoreCase("pt.runescape") || wiki.equalsIgnoreCase("runescape") || wiki.equalsIgnoreCase("2007.runescape"));
 	}
 	
 	private boolean isFollowedPage(String page) {
@@ -425,7 +425,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				formatString += " `%3$s `";
 				
 				outmessage = String.format(formatString, change.getTarget(),
-						change.getTarget().replace(" ", "_").replace(")", "\\)"), change.getSummary());
+						change.getTarget().replaceAll(" ", "_").replace(")", "\\)"), change.getSummary());
 				break;
 				
 			case "move":
@@ -461,7 +461,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				formatString += " `%3$s `";
 				
 				outmessage = String.format(formatString, change.getTarget(),
-						change.getTarget().replace(" ", "_"), change.getSummary());
+						change.getTarget().replaceAll(" ", "_").replace(")", "\\)"), change.getSummary());
 				
 				break;
 				
@@ -480,7 +480,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				}
 				
 				formatString = start + "uploaded a new version of [%1$s](<" + wikiURL + "%2$s>) `%3$s `";
-				outmessage = String.format(formatString, page, page.replaceAll(" ", "_"), summary);
+				outmessage = String.format(formatString, page, page.replaceAll(" ", "_").replace(")", "\\)"), summary);
 				break;
 				
 			case "block":
@@ -498,7 +498,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 					formatString += " `%3$s `";
 					
 					outmessage = String.format(formatString, change.getTarget(),
-							change.getTarget().replace(" ", "_"), change.getSummary(),
+							change.getTarget().replaceAll(" ", "_").replace(")", "\\)"), change.getSummary(),
 							change.getType());
 				} else {
 					formatString = start + "%2$s ";
@@ -522,14 +522,11 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			case "runescape":
 				url = new URL(webhookURL);
 				break;
-			case "pt-br.runescape":
+			case "pt.runescape":
 				url = new URL(ptbrWebhookURL);
 				break;
-			case "2007.runescape":
+			default: // only option left is OS
 				url = new URL(osWebhookURL);
-			default:
-				System.out.println("[ERROR] Unknown wiki: " + change.getWiki());
-				return;
 			}
 			
 			int tries = 0; 
