@@ -40,14 +40,12 @@ public class GEMWbot implements IRCEventListener
 	protected boolean enableTieBot;
 	protected boolean enableTieBotNewUsers;
 	protected boolean enableTellBot;
-	protected boolean enableDiscordBot;
 	protected boolean enableChecker;
 	private Session session;
 	private Session rcSession;
 	private TieBot tieBotInstance;
 	private TellBot tellBotInstance;
 	private UpdateChecker checker;
-	//private DiscordBot discordBotInstance;
 	
 	private GrandExchangeUpdater updateTask;
  
@@ -69,10 +67,6 @@ public class GEMWbot implements IRCEventListener
 		
 		if(enableTieBot) {
 			createTieBotInstance();
-		}
-		
-		if(enableDiscordBot) {
-			createDiscordBotInstance();
 		}
 		
 		if(enableChecker) {
@@ -124,12 +118,6 @@ public class GEMWbot implements IRCEventListener
 				enableTellBot = false;
 			else
 				enableTellBot = temp.equals("true") ? true : false;
-			
-			temp = ircSettings.getProperty("enableDiscordBot");
-			if(temp == null) 
-				enableDiscordBot = false;
-			else
-				enableDiscordBot = temp.equals("true") ? true : false;
 			
 			temp = ircSettings.getProperty("enableChecker");
 			if(temp == null) 
@@ -290,11 +278,7 @@ public class GEMWbot implements IRCEventListener
 					if(checker != null) {
 						checker.stopRunning();
 					}
-					/*
-					if(discordBotInstance != null) {
-						discordBotInstance.quit();
-					}
-					*/
+
 					System.exit(0);
 					
 					
@@ -626,7 +610,6 @@ public class GEMWbot implements IRCEventListener
 			ircSettings.setProperty("enableTieBot", "" + enableTieBot);
 			ircSettings.setProperty("enableTieBotNewUsers", "" + enableTieBotNewUsers);
 			ircSettings.setProperty("enableTellBot", "" + enableTellBot);
-			ircSettings.setProperty("enableDiscordBot", "" + enableDiscordBot);
 			ircSettings.setProperty("feedNetwork", feedNetwork);
 			ircSettings.setProperty("feedPort", "" + feedPort);
 			ircSettings.setProperty("enableChecker", "" + enableChecker);
@@ -713,15 +696,6 @@ public class GEMWbot implements IRCEventListener
 		tieBotInstance.setWikiDiscussionsFeed(enableTieBot);
 	}
 	
-	protected void createDiscordBotInstance() {
-		
-//		try {
-//			discordBotInstance = new DiscordBot(this);
-//		} catch (DiscordException e) {
-//			tellBotInstance.addTell("tybot", "wikia/vstf/TyA", "Discord error when starting discordBot", null);
-//		}
-	}
-	
 	public GrandExchangeUpdater getGEMWinstance() {
 		return updateTask;
 	}
@@ -729,17 +703,7 @@ public class GEMWbot implements IRCEventListener
 	public TellBot getTellBotInstance() {
 		return tellBotInstance;
 	}
-	/*
-	public DiscordBot getDiscordBotInstance() {
-		if(discordBotInstance == null) {
-			return null;
-		}
-		if(discordBotInstance.isDisconnected()) {
-			createDiscordBotInstance();
-		}
-		return discordBotInstance;
-	}
-	*/
+
 	public TieBot getTieBotinstance() {
 		return tieBotInstance;
 	}
@@ -776,23 +740,4 @@ public class GEMWbot implements IRCEventListener
 		String uptime = String.format("%02d days %02d hours %02d minutes %02d seconds", day, hour, minute, second);
 		return uptime;
 	}
-	
-	/*
-	public String getDiscordStatusText(String nick) {
-		
-		String out = "";
-		if(updateTask == null) {
-			out = nick + ": The GE Updater is not running!\n";
-			
-		} else {
-			out = nick + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of " + updateTask.getNumberOfPages() + "!\n";
-		}
-		
-		out += "Uptime: " + getUptime() + "\nTieBot: " + (enableTieBot? "on": "off") 
-				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Discord: "
-				+ ((discordBotInstance == null)? "on": "off");
-		
-		return out;
-	}
-	*/
 }
