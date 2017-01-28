@@ -40,28 +40,17 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 	private String dbUser;
 	private String dbPass;
 	
-	TellBot() {
-		try {
+	public TellBot() {
+		if(!loadSettings())
+			System.out.println("Failed to load settings :(");
+		// we will just exception out and die, main tybot will survive 
+		
+		if(!createDBStuff()) {
+			System.out.println("Failed to create DB Stuff :( so DB probs dead.");
 			
-			if(!loadSettings())
-				System.out.println("Failed to load settings :(");
-			// we will just exception out and die, main tybot will survive 
-			
-			db = DriverManager.getConnection("jdbc:mysql://" + dbHost + "/" + dbName + "?useUnicode=true&characterEncoding=UTF-8", dbUser, dbPass);
-			System.out.println("Created tells db handler");
-			getTellCountQuery = db.prepareStatement("SELECT count(*) AS count FROM tells WHERE target = ?;");
-			getTellCountQueryWithSenders = db.prepareStatement("SELECT sender FROM tells WHERE target = ?;");
-			getTellMessagesQuery = db.prepareStatement("SELECT message,sender,sent FROM tells WHERE target = ? OR target = ?;");
-			removeTellQuery = db.prepareStatement("DELETE FROM tells WHERE target = ? AND sender = ?;");
-			removeTellQueryHost = db.prepareStatement("DELETE FROM tells WHERE sender = ? AND (target = ? OR target = ?);");
-			addTellQuery = db.prepareStatement("INSERT INTO tells(sender,target,message) VALUES(?,?,?);");
+		}
 
-			isEvilBotHere = false;
-		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			
-		} 
+		isEvilBotHere = false; 
 	}
 	
 	private boolean loadSettings() {
@@ -140,6 +129,24 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		}
 		
 		Message[] messages = getMessageForUser(me.getNick(), me.getHostName());
+		
+		// if we get an SQL Error in GetMessageForUser(), it returns null
+		// If it is null, there is likely an issue with it so try to recreate it 3 times. 
+		if(messages == null) {
+			int count = 0;
+			while(count < 3) {
+				cleanupBeforeQuit();
+				createDBStuff();
+				
+				messages = getMessageForUser(me.getNick(), me.getHostName());
+				if(messages != null) {
+					break;
+				}
+				
+				count++;
+			}
+		}
+		
 		if (messages != null) {
 			for(Message message: messages) {
 				me.getChannel().say(me.getNick() + ": [" + message.getTimestamp() + "] <" + message.getSender() + "> " + message.getMessage());
@@ -409,23 +416,48 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 			if(db != null) {
 				db.close();
 			}
-			
+		} catch (SQLException e) {}
+		
+		try {
 			if(getTellCountQuery != null) {
 				getTellCountQuery.close();
 			}
-				
+		} catch (SQLException e) {}
+		
+		try{
 			if (getTellMessagesQuery != null) {
 				getTellMessagesQuery.close();
 			}
-			
+		} catch (SQLException e) {}
+		
+		try {
 			if (removeTellQuery != null) {
 				removeTellQuery.close();
 			}
-			
+		} catch (SQLException e) {}
+		
+		try {
 			if (addTellQuery != null) {
 				addTellQuery.close();
 			}
 		} catch (SQLException e) {}
+	}
+	
+	private boolean createDBStuff() {
+		try {
+			db = DriverManager.getConnection("jdbc:mysql://" + dbHost + "/" + dbName + "?useUnicode=true&characterEncoding=UTF-8", dbUser, dbPass);
+			System.out.println("Created tells db handler");
+			getTellCountQuery = db.prepareStatement("SELECT count(*) AS count FROM tells WHERE target = ?;");
+			getTellCountQueryWithSenders = db.prepareStatement("SELECT sender FROM tells WHERE target = ?;");
+			getTellMessagesQuery = db.prepareStatement("SELECT message,sender,sent FROM tells WHERE target = ? OR target = ?;");
+			removeTellQuery = db.prepareStatement("DELETE FROM tells WHERE target = ? AND sender = ?;");
+			removeTellQueryHost = db.prepareStatement("DELETE FROM tells WHERE sender = ? AND (target = ? OR target = ?);");
+			addTellQuery = db.prepareStatement("INSERT INTO tells(sender,target,message) VALUES(?,?,?);");
+			return true;
+		} catch (SQLException e) {
+			return false;
+		}
+		
 	}
 
 }
