@@ -335,7 +335,9 @@ public class GEMWbot implements IRCEventListener
 						updateTask = new GrandExchangeUpdater(this);
 						Thread thread = new Thread(updateTask);
 						thread.start();
-						checker.stopRunning();
+						
+						if(checker != null) 
+							checker.stopRunning();
 					} catch (Exception err) {
 						channel.say("Failed to start GE Updater.");
 					}
