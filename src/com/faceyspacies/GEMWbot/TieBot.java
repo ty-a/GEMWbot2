@@ -26,6 +26,12 @@ import jerklib.events.IRCEvent;
 import jerklib.events.IRCEvent.Type;
 import jerklib.events.MessageEvent;
 
+/**
+ * A bot that reads an IRC feed of edits/log actions from across Wikia, filters it,
+ * and pushes the filtered data out to either IRC channels or to Discord via webhooks. 
+ * @author Ty
+ *
+ */
 public class TieBot implements jerklib.listeners.IRCEventListener {
 	private ConnectionManager manager;
 	private GEMWbot mainIRC;
@@ -55,6 +61,10 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		
 	}
 	
+	/**
+	 * Loads settings from tiebot.properties. 
+	 * @return Boolean based on success
+	 */
 	private boolean loadSettings() {
 		Properties settings = new Properties();
 		InputStream input = null;
@@ -101,6 +111,9 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		
 	}
 
+	/* (non-Javadoc)
+	 * @see jerklib.listeners.IRCEventListener#receiveEvent(jerklib.events.IRCEvent)
+	 */
 	@Override
 	public void receiveEvent(IRCEvent e) {
 		
@@ -114,6 +127,10 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		}
 	}
 	
+	/**
+	 * Processes all the edits we read in the feed irc channel. Strips irc color codes and sends data where it needs to go
+	 * @param e
+	 */
 	private void processMessage(MessageEvent e) {
 		// We are only interested in the feed, not other things
 		if(!e.getNick().equals("rcbot"))
@@ -138,6 +155,11 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		
 	}
 	
+	/**
+	 * Creates a WikiChange object based on the information we have about the edit.
+	 * @param message The message we have received
+	 * @return WikiChange based on the data received 
+	 */
 	private WikiChange formatMessage(String message) {
 		// [[Special:Log/delete]] delete http://ty.wikia.com/wiki/Special:Log/delete * TyA *  deleted "[[Exchange:Pirate's hook]]": housekeeping
 		// [[Special:Log/newusers]] create http://es.dofuswiki.wikia.com/wiki/Especial:Log/newusers * Juan157 *  New user account
@@ -251,6 +273,10 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		return null;
 	}
 
+	/**
+	 * Processes new user creations and outputs them to #cvn-wikia-newusers on freenode 
+	 * @param message Message received from the feed network
+	 */
 	private void processNewUserMessage(String message) {
 		// [[Especial:Log/newusers]] create http://es.dofuswiki.wikia.com/wiki/Especial:Log/newusers * Juan157 *  New user account
 		
@@ -264,7 +290,15 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		channel.say(message);
 	}
 	
+	/**
+	 * Determines if it is a discussion we're interested in reporting in #rswiki.
+	 * <br />
+	 * Also calls the sendToDiscord(WikiChange) method
+	 * @param change WikiChange based on the edit we're processing 
+	 */
 	private void processWikiDiscussions(WikiChange change) {
+		
+		sendToDiscord(change);
 		
 		String fullWikiUrl;
 		if(isHushed) {
@@ -275,7 +309,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			}
 		}
 
-		sendToDiscord(change);
+		
 		// only process discussions on the RS Wiki
 		if(!change.getWiki().equals("runescape")) {
 			return;
@@ -303,6 +337,11 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		}
 	}
 	
+	/**
+	 * Shortens the URL provided to something shorter to make messages on IRC shorter
+	 * @param fullWikiUrl
+	 * @return
+	 */
 	private String processWikiUrl(String fullWikiUrl) {
 		fullWikiUrl = fullWikiUrl.replace("runescape", "rs");
 		fullWikiUrl = fullWikiUrl.replace("index.php", "");
@@ -316,10 +355,20 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		return fullWikiUrl;
 	}
 
+	/**
+	 * Determines if we care about this wiki
+	 * @param wiki The subdomain of the wiki
+	 * @return boolean on success
+	 */
 	private boolean isFollowedWiki(String wiki) {
 		return(wiki.equalsIgnoreCase("pt.runescape") || wiki.equalsIgnoreCase("runescape") || wiki.equalsIgnoreCase("2007.runescape"));
 	}
 	
+	/**
+	 * Determines if this page is followed for IRC notices. 
+	 * @param page The page that was edited
+	 * @return boolean based on success
+	 */
 	private boolean isFollowedPage(String page) {
 		// we follow all forum pages
 		if(page.startsWith("Forum:"))
@@ -368,35 +417,67 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		return false;
 	}
 	
+	/**
+	 * Sets if the new users feed is on or off
+	 * @param newMode Mode you are changing it to
+	 */
 	protected void setNewUsersFeed(boolean newMode) {
 		newUsersFeed = newMode;
 	}
 	
+	/**
+	 * Gets whether or not the new users feed is on
+	 * @return boolean on whether or not the new users feed is on
+	 */
 	protected boolean getNewUsersFeed() {
 		return newUsersFeed;
 	}
 	
+	/**
+	 * Sets if the bot is following the Wiki Discussions
+	 * @param newMode Mode you are changing it to
+	 */
 	protected void setWikiDiscussionsFeed(boolean newMode) {
 		wikiDiscussionsFeed = newMode;
 	}
 	
+	/**
+	 * Gets whether or not the bot is following wiki discussions
+	 * @return boolean on whether or not the bot is following wiki discussions
+	 */
 	protected boolean getWikiDiscussionsFeed() {
 		return wikiDiscussionsFeed;
 	}
 	
+	/**
+	 * Tells TieBot to not report on edits in IRC for hushTime amount of time
+	 * @param hushTime How long to not report edits in IRC
+	 */
 	protected void hush(long hushTime) {
 		isHushed = true;
 		this.hushTime = hushTime;
 	}
 	
+	/**
+	 * End the hush set on TieBot before the time is up
+	 */
 	protected void unhush() {
 		isHushed = false;
 	}
 	
+	/**
+	 * Sets the threshold that determines how small an edit has to be to be ignored
+	 * @param newThreshold Size of edit to ignore
+	 */
 	protected void setThreshold(int newThreshold) {
 		ignoreThreshold = newThreshold;
 	}
 	
+	/**
+	 * Format a message based on a WikiChange and send it to Discord. Determines
+	 * which webhook to use based on the wiki's domain. 
+	 * @param change
+	 */
 	private void sendToDiscord(WikiChange change) {
 		String outmessage;
 		String formatString;

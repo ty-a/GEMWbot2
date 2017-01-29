@@ -1,5 +1,10 @@
 package com.faceyspacies.GEMWbot.Holders;
 
+/**
+ * This class represents a change on a wiki. It is used by TieBot. 
+ * @author Ty
+ *
+ */
 public class WikiChange {
 	private boolean isLog;
 	private boolean isMinor;

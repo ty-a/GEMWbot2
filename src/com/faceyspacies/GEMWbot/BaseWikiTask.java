@@ -25,25 +25,76 @@ import org.wikipedia.Wiki;
 import com.faceyspacies.GEMWbot.Holders.GEPrice;
 import com.faceyspacies.GEMWbot.Holders.UpdateResult;
 
+/**
+ * A class that represents the base wiki task that can be added to GEMWbot. 
+ * The goal of making this was to help reduce duplicated code. 
+ * @author Ty
+ *
+ */
 abstract class BaseWikiTask implements Runnable {
 	
+	/**
+	 * The bot's wiki username. Loaded from gemw.properties.
+	 */
 	protected String wikiUserName;
+	
+	/**
+	 * The bot's wiki password. Loaded from gemw.properties.
+	 */
 	protected String wikiUserPass;
-	protected String logPage;
+	
+	/**
+	 * The URL for the wiki to edit. Loaded from gemw.properties.
+	 */
 	protected String wikiURL;
-	protected String ircChannel;
-	protected String errorLog;
-	private String rsGraphAPILink = "http://services.runescape.com/m=itemdb_rs/api/graph/";
 	
-	protected Wiki wikiBot;
-
-	protected GEMWbot ircInstance;
+	/**
+	 * The base link for the RuneScape Graph API. 
+	 */
+	protected String rsGraphAPILink = "http://services.runescape.com/m=itemdb_rs/api/graph/";
 	
+	/**
+	 * Boolean on whether or not we should still be running. Does not end immediately, but up to 10 mins after the fact.
+	 */
 	protected boolean running;
 	
+	/**
+	 * The Wiki object we used to communicate with the wiki
+	 */
+	protected Wiki wikiBot;
+	
+	/**
+	 * The GEMWbot instance that allows us access to IRC and other bot functions
+	 */
+	protected GEMWbot ircInstance;
+
+	/**
+	 * The page on the wiki the bot would log data to, such as errors
+	 */
+	protected String logPage;
+	
+	/**
+	 * The name of the IRC channel the bot stays in
+	 */
+	protected String ircChannel;
+	
+	/**
+	 * The current error log. At the end, it maybe saved to the logPage. 
+	 */
+	protected String errorLog;
+
+	
+	/**
+	 * To cut down on time spent re-determining the current timestamp, it is saved here. If you want to be sure you have the fresh
+	 * data, set it to null before using loadCurPrice!
+	 */
 	protected String timestamp;
 	
 	
+	/**
+	 * Our constructor. It loads the settings from gemw.properties, creates the wikiBot object and initalizes a few things too
+	 * @param ircInstance GEMWbot main irc instance
+	 */
 	BaseWikiTask(GEMWbot ircInstance) {
 		if(!loadSettings()) {
 			if(ircInstance != null)
@@ -65,6 +116,10 @@ abstract class BaseWikiTask implements Runnable {
 	
 	}
 	
+	/**
+	 * Loads settings from the gemw.properties file. 
+	 * @return boolean based on success
+	 */
 	private boolean loadSettings() {
 		Properties settings = new Properties();
 		InputStream input = null;
@@ -128,8 +183,15 @@ abstract class BaseWikiTask implements Runnable {
 		}
 	}
 	
+	/**
+	 * Where the implementing classes will start their work. 
+	 */
 	abstract void Start();
 	
+	/**
+	 * Attempts to login to the wiki up to 3 times. 
+	 * @return UpdateResult with success info. 
+	 */
 	protected boolean Login() {
 		int failures = 0;
 		while(failures < 3) {
@@ -158,6 +220,9 @@ abstract class BaseWikiTask implements Runnable {
 		return false;
 	}
 	
+	/**
+	 * Updates the log page on the wiki. 
+	 */
 	protected void updateLogPage() {
 		try {
 			if(errorLog.equalsIgnoreCase("")) 
@@ -169,12 +234,24 @@ abstract class BaseWikiTask implements Runnable {
 		
 	}
 	
+	/**
+	 * A Helper method to add items to the log using the UpdateResult class. Only logs items that were unsuccessful. 
+	 * @param status UpdateResult with success info
+	 * @param pageName The page that corresponds to the UpdateResult
+	 */
 	protected void addToLog(UpdateResult status, String pageName) {
 		if(!status.getSuccess()) {
 			errorLog += "# [{{fullurl:" + pageName.replace("_", " ") + "}} " + pageName.replace("_", " ") + "] - " + status.getResult() + "\n"; 
 		}
 	}
 	
+	/**
+	 * Loads the current price from the Jagex Graph API. 
+	 * @param id The item ID that corresponds to the item you want to load the price for. 
+	 * Usually obtained by parsing the item's Exchange:Module/itemName page.
+	 * @return GEPrice object containing the item's price, ID, and timestamp. 
+	 * @throws MalformedURLException only an issue if you provide a bad item id. 
+	 */
 	protected GEPrice loadCurPrice(String  id) throws MalformedURLException {
 
 		URL url = new URL(rsGraphAPILink + id + ".json");
@@ -234,6 +311,10 @@ abstract class BaseWikiTask implements Runnable {
 		return gePrice;
 	}
 	
+	/**
+	 * Sets the running parameter to false, to cause the main loop to end. 
+	 * Does not guarantee an immediate stop. 
+	 */
 	protected void stopRunning() {
 		running = false;
 	}

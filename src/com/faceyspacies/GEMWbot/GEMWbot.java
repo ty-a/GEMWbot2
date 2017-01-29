@@ -24,37 +24,130 @@ import jerklib.events.IRCEvent.Type;
 import jerklib.listeners.IRCEventListener;
  
 
+/**
+ * The main class of GEMWbot. It handles the startup and the base of all IRC functions. It starts all subfunctions,
+ * such as the GrandExchangeUpdater, TieBot, TellBot, and the UpdateChecker. 
+ * @author Ty
+ *
+ */
 public class GEMWbot implements IRCEventListener
 {
+	/**
+	 * The connection manager that allows us access to the IRC methods.
+	 */
 	private ConnectionManager manager;
 	
+	/**
+	 * GEMWbot's default IRC nick. It is loaded from irc.properties. After initial setup, it is not used. 
+	 */
 	private String ircNick;
+	
+	/**
+	 * The IRC Server the bot will connect to. It is loaded from irc.properties. After initial setup, it is not used.
+	 */
 	private String ircServer;
-	private ArrayList<String> allowedHosts;
+	
+	/**
+	 * An List which contains the hosts of users who are considered "mods" of the bot. Allows access to privileged commands such as
+	 * "~update". Users are added to this list either by editing irc.properties or by using the "~allow" command. 
+	 */
+	private List<String> allowedHosts;
+	
+	/**
+	 * A List which contains the hosts of users who are considered "admins" of the bot. Allows access to priviledged commands such
+	 * as "~die". Users are added to this list manually by editing irc.properties.
+	 */
 	private List<String> adminHosts;
+	
+	/**
+	 * The IRC channel that the bot will join after it connects to the IRC network. Loaded from irc.properties. 
+	 */
 	protected String ircChannel;
+	
+	/**
+	 * The bot's NickServ username. Used for authentication to NickServ. Set in irc.properties.
+	 */
 	private String nickServUser;
+	
+	/**
+	 * The bot's NickServ password. Used for authentication to NickServ. Set in irc.properties. 
+	 */
 	private String nickServPass;
+	
+	/**
+	 * Used for TieBot. The IRC network that the edit feed is on. Set in irc.properties. 
+	 */
 	private String feedNetwork;
+	
+	/**
+	 * Used for TieBot. The port to connect to the IRC network on. Set in irc.properties. 
+	 */
 	private int feedPort;
+	
+	/**
+	 * Boolean on if TieBot is enabled. If not specified in irc.properties, assumed false. 
+	 */
 	protected boolean enableTieBot;
+	
+	/**
+	 * Boolean on if TieBot is reporting new user creations into #cvn-wikia-newusers. If not specified in
+	 * irc.properties, assumed false. 
+	 */
 	protected boolean enableTieBotNewUsers;
+	
+	/**
+	 * Boolean on if TellBot is enabled. If not specified in irc.properties, assumed false. 
+	 */
 	protected boolean enableTellBot;
+	
+	/**
+	 * Boolean on if UpdateChecker is enabled. If not specified in irc.properties, assumed false. Only used in initialization. 
+	 * To determine if the UpdateChecker is currently running, see if checker != null.
+	 */
 	protected boolean enableChecker;
+	
+	/**
+	 * The IRC session. Mostly used to send private messages to users. 
+	 */
 	private Session session;
+	
+	/**
+	 * The IRC session for TieBot. Mostly used to close the session.
+	 */
 	private Session rcSession;
+	
+	/**
+	 * The instance of TieBot that is currently running. Null if not running
+	 */
 	private TieBot tieBotInstance;
+	
+	/**
+	 * The instance of TellBot currently running. Null if not running.
+	 */
 	private TellBot tellBotInstance;
+	
+	/**
+	 * The instance of UpdateChecker currently running. Null if not running.
+	 */
 	private UpdateChecker checker;
 	
+	/**
+	 * The instance of GrandExchangeUpdater currently running. Null if not running. 
+	 */
 	private GrandExchangeUpdater updateTask;
  
+	/**
+	 * Constructor. 
+	 * 
+	 * Loads our settings and opens the IRC connection. Based on settings, enables TellBot, TieBot, and UpdateChecker.
+	 */
 	public GEMWbot()
 	{
 		loadIRCsettings();
 		updateTask = null;
 		tieBotInstance = null;
 		rcSession = null;
+		checker = null;
 
 		manager = new ConnectionManager(new Profile(ircNick));
  
@@ -69,12 +162,19 @@ public class GEMWbot implements IRCEventListener
 			createTieBotInstance();
 		}
 		
-		if(enableChecker) {
-			startChecker();
-		}
+		// The startChecker() method checks if the checker is enabled, so no need
+		// to check here. 
+		startChecker();
 		
 	}
 
+	/**
+	 * Loads IRC settings from our irc.properties file. 
+	 * 
+	 * Some settings are only optional, so if they are not provided, it assigns a default. 
+	 * Other settings are required, and the program will quit without them. It will print a line
+	 * to the console alerting the operator to it.
+	 */
 	private void loadIRCsettings() {
 		Properties ircSettings = new Properties();
 		InputStream input = null;
@@ -176,6 +276,10 @@ public class GEMWbot implements IRCEventListener
 		
 	}
 
+	/* (non-Javadoc)
+	 * @see jerklib.listeners.IRCEventListener#receiveEvent(jerklib.events.IRCEvent)
+	 */
+	@Override
 	public void receiveEvent(IRCEvent e)
 	{
 		if (e.getType() == Type.CONNECT_COMPLETE)
@@ -187,19 +291,20 @@ public class GEMWbot implements IRCEventListener
 		else if (e.getType() == Type.CHANNEL_MESSAGE)
 		{
 			MessageEvent me = (MessageEvent) e;
-			if(!enableChecker) {
+			
+			// If we are not running the UpdateChecker, listen for RuneScript to announce a GE Update
+			if(checker == null) {
 				if(me.getMessage().contains("The Grand Exchange has been updated. RuneScript last detected an update") && 
 						me.getNick().contains("RuneScript")) {
 	
 					Channel channel = e.getSession().getChannel(ircChannel);
-					channel.say("Starting GE Updates!");
 					try {
+						// If the GrandExchangeUpdater is not already running, start it. 
 						if(updateTask == null) {
+							channel.say("Starting GE Updates!");
 							updateTask = new GrandExchangeUpdater(this);
 							Thread thread = new Thread(updateTask);
 							thread.start();
-						} else {
-							channel.say("HALP! RUNESCRIPT DETECTED AN UPDATE WHILE I WAS ALREADY UPDATING; FREAKING OUT MAN");
 						}
 					} catch (Exception err) {
 						channel.say("Failed to start GE Updater.");
@@ -215,6 +320,8 @@ public class GEMWbot implements IRCEventListener
 			}
 		}
 		else if(e.getType() == Type.DEFAULT){
+			
+			// Library handles PING, ignore it
 			if(e.getRawEventData().substring(0, 4).equalsIgnoreCase("PING")) {
 				return;
 			}
@@ -242,6 +349,10 @@ public class GEMWbot implements IRCEventListener
 		}
 	}
 	
+	/**
+	 * Processes MessageEvent received and performs the command, if any, that the user requested.
+	 * @param me MessageEvent that sent a message that started with ~
+	 */
 	private void commandHandler(MessageEvent me) {
 		Session session = manager.getSession(ircServer);
 		Channel channel = me.getChannel();
@@ -251,8 +362,7 @@ public class GEMWbot implements IRCEventListener
 		boolean isAdmin;
 		
 		if(fullCommand.indexOf(" ") != -1) {
-			/* index 1 is start of command after trigger
-			 */
+			// index 1 is start of command after trigger
 			command = fullCommand.substring(1, fullCommand.indexOf(" "));
 			
 		} else {
@@ -554,6 +664,47 @@ public class GEMWbot implements IRCEventListener
 					channel.say(me.getNick() + ": You're not allowed to use the ~tellbot command");
 				}
 				break;
+				
+			case "checker":
+				if(isMod) {
+					try {
+						String mode = fullCommand.split(" ")[1].toLowerCase();
+						boolean on;
+						if(mode.equalsIgnoreCase("on")) {
+							on = true;
+						} else if(mode.equalsIgnoreCase("off")) {
+							on = false;
+						} else {
+							channel.say(me.getNick() + ": Invalid syntax. Use ~checker on/off");
+							return;
+						}
+						
+						if(on) {
+							if(checker != null) {
+								channel.say(me.getNick() + ": Update Checker is already running!");
+								return;
+							}
+							
+							startChecker();
+							channel.say(me.getNick() + ": Starting Update Checker!");
+						} else { // stop running
+							if(checker == null) {
+								channel.say(me.getNick() + ": Update Checker isn't running!");
+								return;
+							}
+							
+							channel.say(me.getNick() + ": Stopping Update Checker!");
+							checker.stopRunning();
+
+						}
+					} catch (IndexOutOfBoundsException err) {
+						channel.say(me.getNick() + ": Invalid syntax. Use ~checker on/off!");
+						return;
+					}
+				} else {
+					session.sayPrivate(me.getNick(),  "You are not allowed to use the checker command");
+				}
+				break;
 			
 			case "allowed":
 				String hosts = "";
@@ -577,6 +728,12 @@ public class GEMWbot implements IRCEventListener
 		}
 	}
 	
+	/**
+	 * Saves settings that may have been modified back into irc.properties. 
+	 * <br />
+	 * IMPORTANT: If you add a new setting to the irc.properties file, make sure
+	 * it is saved here. Otherwise calling this will REMOVE that setting.
+	 */
 	private void saveSettings() {
 
 		
@@ -626,23 +783,47 @@ public class GEMWbot implements IRCEventListener
 		}
 	}
 	
+	/**
+	 * Logs the bot into NickServ. It does it by sending a Private Message to NickServ with the
+	 * nickServUser and nickServPass loaded in from irc.properties. 
+	 * @param session The IRC session we are connected to. 
+	 */
 	private void loginToNickServ(Session session) {
 		session.sayPrivate("NickServ", "IDENTIFY " + nickServUser + " " + nickServPass);
 	}
 	
+	/**
+	 * Determines if the host is a mod of the bot, being in the allowedHosts field. 
+	 * @param host The host of the user.
+	 * @return boolean on if user is a mod
+	 */
 	private boolean isMod(String host) {
 		return allowedHosts.contains(host);
 	}
 	
+	/**
+	 * Determines if the host is an admin of the bot, being in the adminHosts field.
+	 * @param host The host of the user
+	 * @return boolean on if user is an admin
+	 */
 	private boolean isAdmin(String host) {
 		return adminHosts.contains(host);
 	}
  
+	/**
+	 * Our main method which starts the magic. Simply creates a GEMWbot object.
+	 * @param args unused
+	 */
 	public static void main(String[] args)
 	{
 		new GEMWbot();
 	}
 	
+	/**
+	 * A helper method to send a message to channelName. 
+	 * @param channelName The channel to send the message to
+	 * @param message The message to send
+	 */
 	protected void sendMessage(String channelName, String message) {
 		Session session = manager.getSession(ircServer);
 		Channel channel = session.getChannel(channelName);
@@ -650,18 +831,33 @@ public class GEMWbot implements IRCEventListener
 		channel.say(message);
 	}
 	
+	/**
+	 * A Getter method which returns what IRC channel the bot is in
+	 * @return The channel we are in
+	 */
 	public String getChannel() {
 		return ircChannel;
 	}
 	
+	/**
+	 * Sets the updateTask parameter to null, to signify the GrandExchangeUpdater is not currently running. 
+	 * This is used by the GrandExchangeUpdater when it is finished or when it encounters an error. 
+	 */
 	protected void setUpdateTaskToNull() {
 		updateTask = null;
 	}
 	
+	/**
+	 * Sets the checker parameter to null, to signify the UpdateChecker is not currently running. 
+	 * This is used by the UpdateChecker when it detects an update or when it encounters an error. 
+	 */
 	protected void setCheckerToNull() {
 		checker = null;
 	}
 	
+	/**
+	 * If the enableChecker parameter is true and the UpdateChecker isn't already running, it starts the UpdateChecker.
+	 */
 	public void startChecker() {
 		if(enableChecker) {
 			if(checker == null) {
@@ -672,6 +868,9 @@ public class GEMWbot implements IRCEventListener
 		}
 	}
 	
+	/**
+	 * If the Grand Exchange Updater isn't already running, starts it. 
+	 */
 	public void startUpdater() {
 		if(updateTask == null) {
 			try {
@@ -687,6 +886,9 @@ public class GEMWbot implements IRCEventListener
 		}
 	}
 	
+	/**
+	 * Creates our TieBot object and adds the event listener for it. 
+	 */
 	private void createTieBotInstance() {
 		rcSession = manager.requestConnection(feedNetwork, feedPort);
 		tieBotInstance = new TieBot(manager, this);
@@ -696,23 +898,43 @@ public class GEMWbot implements IRCEventListener
 		tieBotInstance.setWikiDiscussionsFeed(enableTieBot);
 	}
 	
+	/**
+	 * Returns the instance of GrandExchangeUpdater that is currently running.
+	 * @return GrandExchangeUpdater instance or null if not running
+	 */
 	public GrandExchangeUpdater getGEMWinstance() {
 		return updateTask;
 	}
 	
+	/**
+	 * Returns the instance of TellBot that is currently running.
+	 * @return TellBot instance or null if not running
+	 */
 	public TellBot getTellBotInstance() {
 		return tellBotInstance;
 	}
 
+	/**
+	 * Returns the instance of TieBot that is currently running.
+	 * @return TieBot instance or null if not running
+	 */
 	public TieBot getTieBotinstance() {
 		return tieBotInstance;
 	}
 	
+	/**
+	 * Adds the TellBot event listener to our IRC session so it can receive commands. 
+	 */
 	private void addTellBotCommands() {
 		tellBotInstance = new TellBot();
 		session.addIRCEventListener(tellBotInstance);
 	}
 	
+	/**
+	 * Creates the Status text returned when using the ~status command. 
+	 * @param nick The user who performed the ~status command
+	 * @return The status text
+	 */
 	public String getStatusText(String nick) {
 		String out = "";
 		if(updateTask == null) {
@@ -724,12 +946,16 @@ public class GEMWbot implements IRCEventListener
 		
 		out += "Uptime: " + getUptime() + " TieBot: " + (enableTieBot? "on": "off") 
 				+ " NewUsersFeed: " + (enableTieBotNewUsers? "on": "off") + " TellBot: " + (enableTellBot? "on": "off") + " Update Checker: "
-				+ ((checker == null)? "on": "off");
+				+ ((checker != null)? "on": "off");
 		
 		return out;
 		
 	}
 	
+	/**
+	 * Gets the current uptime of the program
+	 * @return The uptime as a string
+	 */
 	public String getUptime() {
 		RuntimeMXBean rb = ManagementFactory.getRuntimeMXBean();
 		long millis = rb.getUptime();

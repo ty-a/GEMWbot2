@@ -13,20 +13,46 @@ import com.faceyspacies.GEMWbot.Exceptions.PriceIsZeroException;
 import com.faceyspacies.GEMWbot.Holders.GEPrice;
 import com.faceyspacies.GEMWbot.Holders.UpdateResult;
 
+/**
+ * The object that performs Grand Exchange Updates. It extends the BaseWikiTask class.
+ * A new object should be created for each Grand Exchange Update.
+ * @author Ty
+ *
+ */
 public class GrandExchangeUpdater extends BaseWikiTask {
-	// This class will be run from GEMWbot to start the GE updates
-	// It will run it its own thread and once it is done, it will be destroyed
-	// so a new object will be created every GE Update
 	
+	/**
+	 * The number of pages we're going to try to update.
+	 */
 	private int numberOfPages;
+	
+	/**
+	 * The number of pages we have already updated, or tried to update.
+	 */
 	private int numberOfPagesUpdated;
 
+	/**
+	 * Boolean on if we have received a price of 0 from the API. If we receive a price of 0, there
+	 * is an issue with the API. However, we don't want to spam IRC/Ty with the error. 
+	 */
 	private boolean haveWarnedOnPriceOfZero;
 	
+	/**
+	 * VolumeHandler which contains the trade volume data available from the RuneScape website. Only 100 items have volume data/day.
+	 */
 	private VolumeHandler volumes;
 	
+	/**
+	 * A String that contains all the GE items/prices that we were able to update. It is used to populate Module:GEPrices/data
+	 */
 	private String GEPricesString;
 	
+	/**
+	 * Our constructor. Creates the wikiBot parameter, GEPricesString, and haveWarnedOnPriceOfZero.
+	 * @param ircInstance The GEMWbot object. Used so we have IRC access inside the GrandExchangeUpdater.
+	 * @throws Exception If we encounter any issue that makes it up here, we throw an Exception which 
+	 * should be caught 
+	 */
 	GrandExchangeUpdater(GEMWbot ircInstance) throws Exception {
 		super(ircInstance);
 		
@@ -40,6 +66,13 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		
 	}
 	
+	/**
+	 * The main loop of the GrandExchangeUpdater. It logs in, gets the pages,
+	 * updates the pages, reports any errors, update Trade Indexes, and
+	 * updates Module:GEPrices/data.
+	 * 
+	 * @see com.faceyspacies.GEMWbot.BaseWikiTask#Start()
+	 */
 	@Override
 	protected void Start() {
 
@@ -50,15 +83,16 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			return; // abort, message was sent in function
 		}
 		
+		// create the volume handler and then actually get the volume data.
 		volumes = new VolumeHandler();
 		volumes.getVolumes();
-		if(volumes.isEmpty()) {
-		}
 		
 		String[] pages;
 		System.out.println("getting pages");
 		pages = getPages(wikiBot);
 		for(int i = 0; i < pages.length; i++ ) {
+			// Pages grabbed are Exchange:itemName, so we
+			// want to remove Exchange:
 			pages[i] = pages[i].replace("Exchange:", "");
 		}
 		
@@ -84,6 +118,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				return;
 			}
 		}
+		
+		// Add an "TyBot updated" value to the GEPricesString to tell how fresh the data is
 		GEPricesString += "  ['TyBot updated'] = " + getTodaysEpochTimestamp() + ",\n";
 		GEPricesString = GEPricesString.substring(0, GEPricesString.length() - 2);
 		GEPricesString += "\n}"; 
@@ -103,6 +139,11 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		ircInstance.sendMessage(ircChannel, "GE Updates complete!"); // if we make it to end, we did it
 	}
 
+	/**
+	 * Try 3 times to update the page. 
+	 * @param page The name of the item we want to update
+	 * @return UpdateResult telling of status
+	 */
 	private UpdateResult doUpdates(String page) {
 		int failures;
 		failures = 0;
@@ -125,7 +166,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				Login();
 			} catch (PriceIsZeroException e) {
 				if(!haveWarnedOnPriceOfZero) {
-					ircInstance.getTellBotInstance().addTell("tybot", "@wikia/vstf/TyA;@Wikipedia/The-Mol-Man", "HAD A ZERO PRICE; FREAKING OUT RIGHT NOW. CHECK LOG.", null);
+					ircInstance.getTellBotInstance().addTell("tybot", "@wikia/vstf/TyA", "HAD A ZERO PRICE; FREAKING OUT RIGHT NOW. CHECK LOG.", null);
 					haveWarnedOnPriceOfZero = true;
 				}
 				
@@ -138,9 +179,15 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			}
 		}
 		
+		// We really should never get here
 		return new UpdateResult("unknown error", false);
 	}
 	
+	/**
+	 * Gets all the Exchange pages. If we have an error, try again 3 times. 
+	 * @param wikiBot the Wiki object we are using
+	 * @return String array with all the pages in it. null in case of error. 
+	 */
 	private String[] getPages(Wiki wikiBot) {
 		
 		int failures = 0;
@@ -163,6 +210,13 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		return null; // shouldn't reach here, but if we do assume we have failed. 
 	}
 	
+	/**
+	 * Helper function to handle the retries to perform the data updates. Tries to perform them 3 times if we 
+	 * have an Exception. 
+	 * @param pageName The full page name we want to update
+	 * @param price GEPrice object containing the price and timestamp data.
+	 * @return
+	 */
 	private UpdateResult doDataUpdate(String pageName, GEPrice price) {
 		int failures;
 		failures = 0;
@@ -171,12 +225,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		while(failures < 3) {
 			try {
 				// all items that do not throw exceptions are not recoverable
-				
-				if(pageName.indexOf("Exchange:") == -1) { // module
-					return updateModuleData(pageName, price);
-				} else {
-					return updateData(pageName, price);
-				}
+				return updateModuleData(pageName, price);
 				
 			} catch (IOException e) {
 				failures++;
@@ -202,76 +251,15 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		return new UpdateResult("unknown error", false);
 	}
 	
-	private UpdateResult updateData(String pageName, GEPrice price) throws LoginException, IOException {
-		String pageContent;
-		String volume;
-		boolean doesExist;
-		boolean hasDocTemplate = false;
-		
-		doesExist = (boolean) wikiBot.getPageInfo(pageName).get("exists");
-		if(!doesExist) {
-			pageContent = "{{ExcgData|name={{subst:PAGENAME}}|size={{{size|}}}|\n";
-		} else {
-			pageContent = wikiBot.getPageText(pageName);
-			
-			//Page may have been vandalised, so just add the data that would've been added here so it can be manually added later
-			// If there is no volume, it will say null
-			if(pageContent.length() == 0) {
-				return new UpdateResult("page is empty; " + price.getTimestamp() + ":" + price.getPrice() 
-						+ ((price.getId() != null) ? volumes.getVolumeFor(price.getId()) : ""), false);
-				
-			}
-			
-			if(pageContent.contains("<noinclude>{{/doc}}</noinclude>")) {
-				hasDocTemplate = true;
-				pageContent = pageContent.replaceAll("\\<noinclude\\>\\{\\{\\/doc\\}\\}\\</noinclude\\>", "");
-			}
-			
-			pageContent = pageContent.replaceAll("\\n}}", ",");
-			
-		}
-		
-		if(price.getId() == null) {
-			volume = null;
-		} else {
-			volume = volumes.getVolumeFor(price.getId());
-		}
-		
-		if(volume == null) {
-			pageContent += price.getTimestamp() + ":" + price.getPrice() + "\n}}";
-		} else {
-			pageContent += price.getTimestamp() + ":" + price.getPrice() + ":" + volume  + "\n}}";
-		}
-		
-		if(hasDocTemplate) {
-			pageContent += "<noinclude>{{/doc}}</noinclude>";
-		}
-
-		wikiBot.edit(pageName, pageContent, "Updating price data");
-		
-		return new UpdateResult("", true);
-	}
-	
-	@SuppressWarnings("unused")
-	private String[] getModulePages(Wiki wiki) {
-		int failures = 0;
-		
-		while(failures < 3) {
-			try {
-				String[] pages = wiki.listPages("Module:Exchange/", null, 828, -1, -1);
-				return pages;
-			} catch (IOException e1) {
-				failures++;
-				if(failures == 3) {
-					ircInstance.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA", "I was unable to get the module page list.", null);
-					return null;
-				}
-			}
-		}
-		
-		return null;
-	}
-	
+	/**
+	 * Actually updates the price data on the Module:Exchange/item page
+	 * @param pageName The name of the item we want to update. Also accepts full page name.
+	 * @return UpdateResult with success info
+	 * @throws IOException
+	 * @throws LoginException
+	 * @throws PriceIsZeroException
+	 * @throws Exception
+	 */
 	private UpdateResult updateModulePage(String pageName) throws IOException, LoginException, PriceIsZeroException, Exception {
 		String itemID = null;
 		GEPrice newPrice = null;
@@ -298,6 +286,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 			return new UpdateResult("unable to load item id", false);
 		}
 		
+		// try to load the price up to 3 times
 		for(int i = 0; i < 3; i++) {
 			try {
 				newPrice = loadCurPrice(itemID);
@@ -306,8 +295,10 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 				return new UpdateResult("item id is invalid", false);
 			}
 			
+			// if it is null, we couldn't get the price :(
 			if(newPrice == null) {
 				try {
+					// wait 3 seconds to avoid rate-limiting
 					Thread.sleep(3000);
 				} catch (InterruptedException e) {}
 				
@@ -358,6 +349,15 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		return new UpdateResult("", true);
 	}
 	
+	/**
+	 * Actually updates the /data module page. 
+	 * @param pageName The full page name of the module we are updating
+	 * @param price The price of the item
+	 * @return UpdateResult with success information
+	 * @throws LoginException
+	 * @throws IOException
+	 * @throws Exception
+	 */
 	private UpdateResult updateModuleData(String pageName, GEPrice price) throws LoginException, IOException, Exception {
 		String pageContent;
 		String volume;
@@ -398,6 +398,10 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		return new UpdateResult("", true);
 	}
 	
+	/**
+	 * Purges the index pages and for each page, gets their current index value. Calls
+	 * doTradeIndexUpdate to actually perform the update.
+	 */
 	private void updateTradeIndexData() {
 		String parsedContent;
 
@@ -438,21 +442,21 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		}
 	}
 	
+	/**
+	 * Actually calls the method that performs the page update. Gives it 3 attempts to succeed. 
+	 * @param page Module:Exchange/TradeIndexNameNoGE
+	 * @param currentDayTimestamp The timestamp to use on the page
+	 * @param parsedContent The current index value
+	 */
 	private void doTradeIndexUpdate(String page, String currentDayTimestamp, String parsedContent) {
 		GEPrice price = null;
-		System.out.println(page);
 		
+		// To make things easy and reuseable, we're going to act like it is just updating a price. 
 		price = new GEPrice(currentDayTimestamp, parsedContent);
 		
 		for(int i = 0; i < 3; i++) {
 			try {
-				if(page.indexOf("Module:Exchange/") == -1) {
-					addToLog(updateData(page + "/Data", price), page + "/Data");
-					break;
-				} else {
-					addToLog(updateModuleData(page + "/Data", price), page + "/Data");
-					break;
-				}
+				addToLog(updateModuleData(page + "/Data", price), page + "/Data");
 			} catch (IOException e) {
 				System.out.println("[ERROR] Unable to update data on " + page );
 			} catch (LoginException e) {
@@ -463,6 +467,11 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		}
 	}
 	
+    /**
+     * Gets today's Epoch Timestamp from Jagex. Might not actually be today's, but it is what
+     * is used by their Graph API. 
+     * @return Epoch Timestamp string from Jagex's Graph API
+     */
     private String getTodaysEpochTimestamp() {
     	
 		try {
@@ -479,10 +488,18 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     	
 	}
 	
+	/**
+	 * A Getter method which returns the number of pages we are working on
+	 * @return Number of pages we're working on
+	 */
 	public int getNumberOfPages() {
 		return numberOfPages;
 	}
 	
+	/**
+	 * A Getter method which returns the number of pages we have updated.
+	 * @return Number of pages updated.
+	 */
 	public int getNumberOfPagesUpdated() {
 		return numberOfPagesUpdated;
 	}

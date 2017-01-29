@@ -24,22 +24,79 @@ import jerklib.events.IRCEvent.Type;
 import jerklib.events.PartEvent;
 import jerklib.events.QuitEvent;
 
+/**
+ * 
+ * @author Ty
+ *
+ */
 public class TellBot implements jerklib.listeners.IRCEventListener {
 
+	/**
+	 * Our main Database connection. Used to create our PreparedStatements.
+	 */
 	private Connection db;
+	
+	
+	/**
+	 * PreparedStatement for getting the the number of tells for a user
+	 */
 	private PreparedStatement getTellCountQuery;
+	
+	/**
+	 * PreparedStatement for getting the number of tells for a user and who sent them.
+	 */
 	private PreparedStatement getTellCountQueryWithSenders;
+	
+	/**
+	 * PreparedStatment for getting a user's tells
+	 */
 	private PreparedStatement getTellMessagesQuery;
+	
+	/**
+	 * PreparedStatement for removing a tell
+	 */
 	private PreparedStatement removeTellQuery;
+	
+	/**
+	 * PreparedStatement for removing a tell from a host or to a host?
+	 */
 	private PreparedStatement removeTellQueryHost;
+	
+	/**
+	 * PreparedStatement for adding a tell.
+	 */
 	private PreparedStatement addTellQuery;
+	
+	/**
+	 * Boolean on whether Evilbot is currently in chat. 
+	 */
 	private boolean isEvilBotHere;
 	
+	/**
+	 * The database server host. Loaded from tellbot.properties
+	 */
 	private String dbHost;
+	
+	/**
+	 * The name of the tells database. Loaded from tellbot.properties
+	 */
 	private String dbName;
+	
+	/**
+	 * The database user. Loaded from tellbot.properties
+	 */
 	private String dbUser;
+	
+	/**
+	 * The datanase user's password. Loaded from tellbot.properties. 
+	 */
 	private String dbPass;
 	
+	/**
+	 * Our constructor. Loads settings and creates DB stuff. If either fails, prints line to console.
+	 * 
+	 * It shouldn't affect TyBot much, so if tellbot isn't working, check console. 
+	 */
 	public TellBot() {
 		if(!loadSettings())
 			System.out.println("Failed to load settings :(");
@@ -53,6 +110,10 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		isEvilBotHere = false; 
 	}
 	
+	/**
+	 * Loads settings from tellbot.properties. 
+	 * @return Boolean based on success
+	 */
 	private boolean loadSettings() {
 		Properties settings = new Properties();
 		InputStream input = null;
@@ -101,6 +162,10 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		
 	}
 	
+	/** Check to see if Evilbot joins or leaves chat.
+	 * Also processes all messages
+	 * @see jerklib.listeners.IRCEventListener#receiveEvent(jerklib.events.IRCEvent)
+	 */
 	@Override
 	public void receiveEvent(IRCEvent e) {
 		if(e.getType() == Type.CHANNEL_MESSAGE) {
@@ -123,6 +188,13 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		}
 	}
 	
+	/**
+	 * Processes all messages. First determines if evilbot is here. 
+	 * After that, we check if the user has any messages. If they do, we deliver the messages.
+	 * <br />
+	 * Then we determine if the user is trying to use a command, and if so act on it. 
+	 * @param me
+	 */
 	private void processMessage(MessageEvent me) {
 		if(me.getNick().equalsIgnoreCase("evilbot")) {
 			isEvilBotHere = true;
@@ -244,9 +316,12 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		}
 	}
 	
-	// Tells are stored by nick, rather than by host
-	//     We will want to see if their host matches or if their nick matches
-	// returns array of messages for user or null if none
+	/**
+	 * Get the messages for the user. This checks if the user has messages on their nick or host. 
+	 * @param user the user's nick we're checking
+	 * @param host the user's host we're checking
+	 * @return Message array of messages, or null if none
+	 */
 	private Message[] getMessageForUser(String user, String host) {
 		try {
 			ArrayList<Message> list = new ArrayList<Message>();
@@ -265,8 +340,11 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		}
 	}
 	
-	// Return the count of tells for user
-	// -1 in case of error
+	/**
+	 * Gets the number of tells user has. 
+	 * @param user User to get tell count for
+	 * @return int number of messages, -1 for error
+	 */
 	private int getTellCountForUser(String user) {
 		try {
 			getTellCountQuery.setString(1, user);
@@ -282,8 +360,15 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		}
 	}
 	
-	// Return the count of tells for user
-	// -1 in case of error
+	/**
+	 * Gets the tell count for the user plus who has sent them messages
+	 * @param user User to get tell count for
+	 * @return <ul>
+	 * <li>"user has number message(s) waiting for him/her, from: source, source, ..."</li>
+	 * <li>"user has no unread messages!"</li>
+	 * <li>Null in case of error</li>
+	 * </ul>
+	 */
 	private String getTellCountForUserPlusSenders(String user) {
 		try {
 			getTellCountQueryWithSenders.setString(1, user);
@@ -319,6 +404,13 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 	// Remove the tell from nick to target
 	// int row changes
 	// -1 in case of error.
+	/**
+	 * Removes tells from nick/host to target. Target can be a ; delimited list.
+	 * @param nick Nick of user wanting to remove tells
+	 * @param target Nick/Host of user to remove tell from, or ; delimited list of Nicks/Hosts
+	 * @param host
+	 * @return Number of rows changed, so number of tells removed. -1 in case of error.
+	 */
 	private int removeTell(String nick, String target, String host) {
 		int rowsRemoved = 0;
 		if(target.indexOf(";") > -1) {
@@ -333,6 +425,13 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		return rowsRemoved;
 	}
 	
+	/**
+	 * Actually removes the tell from the database
+	 * @param nick 
+	 * @param target
+	 * @param host
+	 * @return Number of rows changed, -1 in case of error.
+	 */
 	private int actuallyRemoveTell(String nick, String target, String host) {
 		try {
 			if(host != null) {
@@ -411,6 +510,9 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		}
 	}
 	
+	/**
+	 * Closes all database objects before quitting. 
+	 */
 	protected void cleanupBeforeQuit() {
 		try {
 			if(db != null) {
@@ -443,6 +545,10 @@ public class TellBot implements jerklib.listeners.IRCEventListener {
 		} catch (SQLException e) {}
 	}
 	
+	/**
+	 * Creates the database objects/prepared statements. 
+	 * @return boolean on success. 
+	 */
 	private boolean createDBStuff() {
 		try {
 			db = DriverManager.getConnection("jdbc:mysql://" + dbHost + "/" + dbName + "?useUnicode=true&characterEncoding=UTF-8", dbUser, dbPass);
