@@ -83,8 +83,8 @@ public class UpdateChecker extends BaseWikiTask {
 				
 				// ensure we're getting the freshest of prices
 				timestamp = null;
-				String jagexPrice = loadCurPrice("4151").getPrice();
-				String wikiPrice = loadPriceFromWiki("Module:Exchange/Abyssal_whip");
+				String jagexPrice = loadCurPrice("20171").getPrice();
+				String wikiPrice = loadPriceFromWiki("Module:Exchange/Zaryte bow");
 				
 				if(jagexPrice == null || wikiPrice == null) { // try again in 10 mins
 					continue;

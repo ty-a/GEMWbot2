@@ -2,6 +2,8 @@ package com.faceyspacies.GEMWbot;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -99,12 +101,17 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 		numberOfPages = pages.length;
 		numberOfPagesUpdated = 0;
 		
+		List<String> itemsRemovedFromGE = getItemsRemovedFromGE();
+		
 		for(int i = 0; i < pages.length; i++) {
 		
 			// update the pages, once it is done add to log
 			if(running) {
 				numberOfPagesUpdated++;
 				if(pages[i].contains("/Data")) // we update /Data pages as part of updating the main page
+					continue;
+				
+				if(itemsRemovedFromGE.contains(pages[i]))
 					continue;
 				
 				addToLog(doUpdates(pages[i]), pages[i]);
@@ -502,5 +509,25 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 	 */
 	public int getNumberOfPagesUpdated() {
 		return numberOfPagesUpdated;
+	}
+	
+	/**
+	 * Fetches the items from User:TyBot/itemsRemovedFromGE. These are items that are not available on the GE, but have
+	 * an Exchange: page for historical reference. This is to avoid wasting time on items that we know will not work. 
+	 * @return A List of item names to not worry about. 
+	 */
+	private List<String> getItemsRemovedFromGE() {
+		try {
+			String items = wikiBot.getPageText("User:TyBot/itemsRemovedFromGE");
+			ArrayList<String> temp = new ArrayList<String>();
+			String[] itemsarray = items.split("\n");
+			for(String item: itemsarray) {
+				temp.add("Exchange:" + item);
+			}
+			return temp;
+		} catch (IOException e) {
+			return new ArrayList<String>();
+		}
+		
 	}
 }
