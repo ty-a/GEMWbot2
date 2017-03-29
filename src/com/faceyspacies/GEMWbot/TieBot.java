@@ -373,9 +373,10 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 		// we follow all forum pages
 		if(page.startsWith("Forum:"))
 			return true;
-		else if(page.startsWith("RuneScape:Clan Chat/Requests for CC Rank/"))
+		else if(page.startsWith("RuneScape:Clan Chat/Requests for CC Rank/") || page.startsWith("RuneScape:Events Team/Requests/"))
 			return true;
-		else if(page.startsWith("RuneScape:Requests for ")) {
+		else if(page.startsWith("RuneScape:Requests for ") || page.startsWith("RuneScape:The Wikian")
+				|| page.startsWith("RuneScape:Featured images")) {
 			
 			if(page.indexOf("/") == -1) {
 				// If there is no /, it is most likely the base page.
@@ -391,16 +392,6 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 				return false;
 			}
 				
-			
-			return true;
-		} else if (page.startsWith("RuneScape:Featured images/")) {
-			if(page.toLowerCase().indexOf("/archive") != -1) {
-				// This page is most likely an archive. 
-				// archives usually take the form of /Archive int 
-				// where int is the current archive number
-				return false;
-			}
-			
 			return true;
 		}
 
@@ -410,7 +401,6 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
 			case "RuneScape:AutoWikiBrowser/Requests":
 			case "RuneScape:Off-site/IRC/Bot requests":
 			case "RuneScape:Counter-Vandalism Unit":
-			case "RuneScape:The Wikian":
 				return true;
 		}
 		
