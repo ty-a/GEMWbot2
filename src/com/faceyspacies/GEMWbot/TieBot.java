@@ -146,19 +146,30 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
       if (newUsersFeed) {
         if (message.indexOf(" New user registration http") != -1) {
           processNewUserMessage(e.getMessage());
-          return; // if a new user, it isn't a discussion
         }
       } else {
-        return; // is a new user, so not a discussion
+        return; // message from user-reg channel, not edit feed
       }
     }
 
 
-    String wiki = message.substring(message.indexOf("http://") + 7, message.indexOf(".wikia"));
+    try {
+      String wiki;
+      // TODO: what if the edit summary contains an https link? before, we could always assume the
+      // first http link was
+      // the URL but we can't really do that now because of it being mixed
+      if (message.indexOf("https://") > -1) {
+        wiki = message.substring(message.indexOf("https://") + 8, message.indexOf(".wikia"));
+      } else {
+        wiki = message.substring(message.indexOf("http://") + 7, message.indexOf(".wikia"));
+      }
 
-    if (wikiDiscussionsFeed && isFollowedWiki(wiki)) {
-      WikiChange change = formatMessage(message);
-      processWikiDiscussions(change);
+      if (wikiDiscussionsFeed && isFollowedWiki(wiki)) {
+        WikiChange change = formatMessage(message);
+        processWikiDiscussions(change);
+      }
+    } catch (StringIndexOutOfBoundsException exception) {
+      return;
     }
 
   }
@@ -202,8 +213,9 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
     // old regex which doesn't capture wiki domain
     // String regex = "\\[\\[Special:Log\\/(\\w*)\\]\\] (\\w*) .* \\* (.*) \\* (.*)";
     String regex =
-        "\\[\\[E?[Ss]pecial:Log\\/(\\w*)\\]\\] (\\w*) http:\\/\\/(.*)\\.wikia.* \\* (.*) \\* (.*)";
+        "\\[\\[E?[Ss]pecial:Log\\/(\\w*)\\]\\] (\\w*) https?:\\/\\/(.*)\\.wikia.* \\* (.*) \\* (.*)";
 
+    // We only care about English and pt-br
     boolean isLog = message.startsWith("[[Special:Log/") || message.startsWith("[[Especial:Log/");
     boolean isNew = false;
     boolean isMinor = false;
@@ -274,7 +286,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
       // old regex which doesn't capture wiki domain
       // String editRegex = "\\[\\[(.*)\\]\\] ([!NMB]{0,4}) (.*) \\* (.*) \\* \\((.*)\\) (.*)";
       String editRegex =
-          "\\[\\[(.*)\\]\\] ([!NMB]{0,4}) (http:\\/\\/(.*).wikia.*) \\* (.*) \\* \\((.*)\\) (.*)";
+          "\\[\\[(.*)\\]\\] ([!NMB]{0,4}) (https?:\\/\\/(.*).wikia.*) \\* (.*) \\* \\((.*)\\) (.*)";
       Pattern editregex = Pattern.compile(editRegex);
       Matcher editRegexMatcher = editregex.matcher(message);
 
@@ -320,6 +332,7 @@ public class TieBot implements jerklib.listeners.IRCEventListener {
     StringBuilder out = new StringBuilder(Colors.DARK_GREEN + user);
     out.append(Colors.NORMAL + " New user registration ");
     out.append(Colors.TEAL + wiki);
+    out.append(" - " + wiki.replace("Log/newusers", "Contributions/" + user.replace(" ", "_")));
     channel.say(out.toString());
   }
 
