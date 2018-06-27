@@ -106,7 +106,7 @@ abstract class BaseWikiTask implements Runnable {
             "failed to load config", null);
     };
 
-    wikiBot = new Wiki(wikiURL, "");
+    wikiBot = Wiki.createInstance(wikiURL, "", "https://");
     wikiBot.setMarkBot(true);
     wikiBot.setThrottle(0);
     wikiBot
