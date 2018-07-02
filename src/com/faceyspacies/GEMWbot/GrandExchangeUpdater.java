@@ -22,6 +22,10 @@ import com.faceyspacies.GEMWbot.Holders.UpdateResult;
  * The object that performs Grand Exchange Updates. It extends the BaseWikiTask class. A new object
  * should be created for each Grand Exchange Update.
  * 
+ * For each item, the bot makes several requests to the MediaWiki Server. 1 request to get the page
+ * text for the Module:Exchange/Item and Module:Exchange/Item/Data pages 2 requests to get page
+ * info, one per page 2 requests to get edit token? 2 requests to actually make the edit
+ * 
  * @author Ty
  *
  */
@@ -166,6 +170,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 
     while (failures < 3) {
       try {
+        System.out.println("Updating " + page);
         return updateModulePage(page);
       } catch (IOException e) {
         failures++;
@@ -413,7 +418,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     if (pageContent == null) {
       pageContent = "return {\n";
     } else {
-      pageContent = wikiBot.getPageText(pageName);
+      // We already have page content from previous query, making this unnecessary
+      // pageContent = wikiBot.getPageText(pageName);
 
       // Page may have been vandalised, so just add the data that would've been added here so it can
       // be manually added later

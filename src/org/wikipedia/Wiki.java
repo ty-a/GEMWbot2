@@ -567,6 +567,9 @@ public class Wiki implements Comparable<Wiki> {
   // Stuff you actually upload must be no larger than 2 GB.
   private static final int LOG2_CHUNK_SIZE = 22;
 
+  // Edit token - it is unnecessary to fetch with every single edit
+  private String edittoken;
+
   // CONSTRUCTORS AND CONFIGURATION
 
   /**
@@ -1231,6 +1234,8 @@ public class Wiki implements Comparable<Wiki> {
       }
       log(Level.INFO, "login", "Successfully logged in as " + username + ", highLimit = "
           + apihighlimit);
+
+      edittoken = getToken("csrf");
     } else if (line.contains("result=\"Failed\""))
       throw new FailedLoginException("Login failed: " + parseAttribute(line, "reason", 0));
     // interactive login or bot password required
@@ -2142,14 +2147,15 @@ public class Wiki implements Comparable<Wiki> {
     // @revised 0.25 optional bot flagging
     throttle();
 
-    // protection
-    Map<String, Object> info = getPageInfo(title);
-    if (!checkRights(info, "edit") || (Boolean) info.get("exists") && !checkRights(info, "create")) {
-      CredentialException ex = new CredentialException("Permission denied: page is protected.");
-      log(Level.WARNING, "edit", "Cannot edit - permission denied. " + ex);
-      throw ex;
-    }
-
+    /*
+     * Commenting out because do not need to worry about page protection save the web request per
+     * edit
+     * 
+     * // protection Map<String, Object> info = getPageInfo(title); if (!checkRights(info, "edit")
+     * || (Boolean) info.get("exists") && !checkRights(info, "create")) { CredentialException ex =
+     * new CredentialException("Permission denied: page is protected."); log(Level.WARNING, "edit",
+     * "Cannot edit - permission denied. " + ex); throw ex; }
+     */
     Map<String, String> getparams = new HashMap<>();
     getparams.put("action", "edit");
     getparams.put("title", normalize(title));
@@ -2160,12 +2166,19 @@ public class Wiki implements Comparable<Wiki> {
     // edit summary is created automatically if making a new section
     if (section != -1)
       postparams.put("summary", summary);
-    postparams.put("token", getToken("csrf"));
-    if (basetime != null) {
-      postparams.put("starttimestamp", info.get("timestamp"));
-      // I wonder if the time getPageText() was called suffices here
-      postparams.put("basetimestamp", basetime);
+
+    if (edittoken == null) {
+      edittoken = getToken("csrf");
+    } else {
+      postparams.put("token", edittoken);
     }
+
+    /*
+     * Commenting out because unnecessary if (basetime != null) { postparams.put("starttimestamp",
+     * info.get("timestamp")); // I wonder if the time getPageText() was called suffices here
+     * postparams.put("basetimestamp", basetime); }
+     */
+
     if (minor)
       postparams.put("minor", "1");
     if (bot && user != null && user.isAllowedTo("bot"))
@@ -2404,15 +2417,11 @@ public class Wiki implements Comparable<Wiki> {
     getparams.put("titles", normalize(title));
 
     List<String> categories =
-        makeListQuery("cl",
-            getparams,
-            null,
-            "getCategories",
-            (line, results) -> {
-              // xml form: <cl ns="14" title="Category:1879 births" sortkey=(long string)
-              // sortkeyprefix="" />
-              // or : <cl ns="14" title="Category:Images for cleanup" sortkey=(long string)
-              // sortkeyprefix="Borders" hidden="" />
+        makeListQuery("cl", getparams, null, "getCategories", (line, results) -> {
+          // xml form: <cl ns="14" title="Category:1879 births" sortkey=(long string)
+          // sortkeyprefix="" />
+          // or : <cl ns="14" title="Category:Images for cleanup" sortkey=(long string)
+          // sortkeyprefix="Borders" hidden="" />
             int a, b; // beginIndex and endIndex
             for (a = line.indexOf("<cl "); a > 0; a = b) {
               b = line.indexOf("<cl ", a + 1);
@@ -4645,7 +4654,7 @@ public class Wiki implements Comparable<Wiki> {
    * <p>
    * Available keys for <var>options</var> include "minor", "top", "new" and "patrolled" for vanilla
    * MediaWiki (extensions may define their own).their own). For example, {@code options = top =
-   * true, new = true }} returns all edits by a user that created pages which haven't been edited
+   * true, new = true } returns all edits by a user that created pages which haven't been edited
    * since. Setting "patrolled" limits results to no older than <a
    * href="https://mediawiki.org/wiki/Manual:$wgRCMaxAge">retention</a> in the <a
    * href="https://mediawiki.org/wiki/Manual:Recentchanges_table">recentchanges table</a>.
@@ -5095,7 +5104,7 @@ public class Wiki implements Comparable<Wiki> {
    * <p>
    * Available keys for <var>options</var> include "minor", "bot", "anon", "patrolled", "top" and
    * "unread" for vanilla MediaWiki (extensions may define their own). {@code options = minor =
-   * true;, bot = false }} returns all minor edits not made by bots.
+   * true;, bot = false } returns all minor edits not made by bots.
    *
    * @param options a Map dictating which revisions to select. Key not present = don't care.
    * @param ns a list of namespaces to filter by, empty = all namespaces.
@@ -5177,8 +5186,7 @@ public class Wiki implements Comparable<Wiki> {
     getparams.put("srnamespace", constructNamespaceString(namespaces));
 
     List<Map<String, Object>> results =
-        makeListQuery("sr",
-            getparams,
+        makeListQuery("sr", getparams,
             null,
             "search",
             (line, list) -> {
@@ -5980,7 +5988,7 @@ public class Wiki implements Comparable<Wiki> {
    * <p>
    * Available keys for <var>rcoptions</var> include "minor", "bot", "anon", "redirect" and
    * "patrolled" for vanilla MediaWiki (extensions may define their own). {@code rcoptions = minor
-   * = true, anon = false, patrolled = false }} returns all minor edits from logged in users that
+   * = true, anon = false, patrolled = false } returns all minor edits from logged in users that
    * aren't patrolled.
    *
    * @param rcoptions a Map dictating which pages to select. Key not present = don't care.
@@ -6098,8 +6106,7 @@ public class Wiki implements Comparable<Wiki> {
    * <p>
    * Available keys for <var>rcoptions</var> include "minor", "bot", "anon", "redirect", "patrolled"
    * for vanilla MediaWiki (extensions may define their own). {@code rcoptions = minor = true, anon
-   * = false, patrolled = false}} returns all minor edits from logged in users that aren't
-   * patrolled.
+   * = false, patrolled = false} returns all minor edits from logged in users that aren't patrolled.
    * <p>
    * Note: Log entries in recent changes have a revid of 0!
    *
@@ -6210,8 +6217,7 @@ public class Wiki implements Comparable<Wiki> {
     getparams.put("iwblprop", "iwtitle|iwprefix");
 
     List<String[]> links =
-        makeListQuery("iwbl",
-            getparams,
+        makeListQuery("iwbl", getparams,
             null,
             "getInterWikiBacklinks",
             (line, results) -> {
@@ -7692,7 +7698,8 @@ public class Wiki implements Comparable<Wiki> {
    * <li>StringBuilder -- {@code sb.toString()}
    * <li>Number -- {@code num.toString()}
    * <li>OffsetDateTime -- {@code date.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)}
-   * <li>{@code Collection<?>} -- {@code coll.stream()
+   * <li>{@code Collection<?>} --
+   * {@code coll.stream()
    * .map(item -> convertToString(item)) // using the above rules .collect(Collectors.joining("|"))}
    * </ul>
    *
