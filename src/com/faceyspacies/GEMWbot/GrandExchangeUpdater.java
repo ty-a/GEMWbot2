@@ -5,7 +5,9 @@ import java.net.MalformedURLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,8 +25,8 @@ import com.faceyspacies.GEMWbot.Holders.UpdateResult;
  * should be created for each Grand Exchange Update.
  * 
  * For each item, the bot makes several requests to the MediaWiki Server. 1 request to get the page
- * text for the Module:Exchange/Item and Module:Exchange/Item/Data pages 2 requests to get page
- * info, one per page 2 requests to get edit token? 2 requests to actually make the edit
+ * text for the Module:Exchange/Item and Module:Exchange/Item/Data pages 2 requests to actually make
+ * the edit
  * 
  * @author Ty
  *
@@ -481,14 +483,17 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     for (String page : indexPages) {
       // Only exists in template namespace
       try {
-        parsedContent = wikiBot.parse("Template:" + page);
+        Map<String, Object> content = new HashMap<>();
+        content.put("title", "Template:" + page);
+        parsedContent = wikiBot.parse(content, -1, true);
       } catch (IOException e) {
         System.out.println("[ERROR] Unable to update data on " + page);
         continue;
       }
 
       // We are just interested in the number
-      parsedContent = parsedContent.substring(0, parsedContent.indexOf("<"));
+      parsedContent =
+          parsedContent.substring(parsedContent.indexOf("<p>") + 3, parsedContent.indexOf("</p>"));
 
       doTradeIndexUpdate("Module:Exchange/" + page.replaceAll("GE ", ""), currentDayTimestamp,
           parsedContent);
