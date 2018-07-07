@@ -98,6 +98,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       return; // abort, message was sent in function
     }
 
+    wikiBot.setAssertionMode(Wiki.ASSERT_BOT);
+
     // create the volume handler and then actually get the volume data.
     volumes = new VolumeHandler();
     volumes.getVolumes();
@@ -181,12 +183,11 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         }
         Login(); // If we are logged out, it will give us a IOException with HookAborted
 
-      } catch (LoginException e) {
+      } catch (LoginException | AssertionError e) {
         failures++;
         if (failures == 3) {
-          return new UpdateResult("failed to stay logged in", false);
+          return new UpdateResult(e.getMessage(), false);
         }
-        Login();
       } catch (PriceIsZeroException e) {
         if (!haveWarnedOnPriceOfZero) {
           ircInstance.getTellBotInstance().addTell("tybot", "@wikia/vstf/TyA",
@@ -263,10 +264,10 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         }
         Login();
 
-      } catch (LoginException e) {
+      } catch (LoginException | AssertionError e) {
         failures++;
         if (failures == 3) {
-          return new UpdateResult("failed to stay logged in", false);
+          return new UpdateResult(e.getMessage(), false);
         }
         Login();
       } catch (Exception e) {
