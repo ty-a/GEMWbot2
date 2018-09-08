@@ -134,8 +134,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         try {
           Thread.sleep(2500);
         } catch (InterruptedException e) {
-          ircInstance.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA",
-              "UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW", null);
+          ircInstance.sendMessage("rswiki", "UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW");
         }
       } else { // if no longer running, stop loop and end
         return;
@@ -190,8 +189,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         }
       } catch (PriceIsZeroException e) {
         if (!haveWarnedOnPriceOfZero) {
-          ircInstance.getTellBotInstance().addTell("tybot", "@wikia/vstf/TyA",
-              "HAD A ZERO PRICE; FREAKING OUT RIGHT NOW. CHECK LOG.", null);
+          ircInstance.sendMessage("rswiki", "HAD A ZERO PRICE; FREAKING OUT RIGHT NOW. CHECK LOG.");
           haveWarnedOnPriceOfZero = true;
         }
 
@@ -228,8 +226,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       } catch (IOException e1) {
         failures++;
         if (failures == 3) {
-          ircInstance.getTellBotInstance().addTell("tybot", "wikia/vstf/TyA",
-              "I was unable to get the page list.", null);
+          ircInstance.sendMessage("rswiki", "I was unable to get the page list.");
           return null;
         }
       }

@@ -102,8 +102,7 @@ abstract class BaseWikiTask implements Runnable {
   BaseWikiTask(GEMWbot ircInstance) {
     if (!loadSettings()) {
       if (ircInstance != null)
-        ircInstance.getTellBotInstance().addTell("gemwbot", "wikia/vstf/TyA",
-            "failed to load config", null);
+        ircInstance.sendMessage("rswiki", "failed to load config");
     };
 
     wikiBot = Wiki.createInstance(wikiURL, "", "https://");

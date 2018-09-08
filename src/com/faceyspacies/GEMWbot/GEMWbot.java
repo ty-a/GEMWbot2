@@ -27,7 +27,7 @@ import jerklib.listeners.IRCEventListener;
 
 /**
  * The main class of GEMWbot. It handles the startup and the base of all IRC functions. It starts
- * all subfunctions, such as the GrandExchangeUpdater, TieBot, TellBot, and the UpdateChecker.
+ * all subfunctions, such as the GrandExchangeUpdater, TieBot and the UpdateChecker.
  * 
  * @author Ty
  *
@@ -102,11 +102,6 @@ public class GEMWbot implements IRCEventListener {
   protected boolean enableTieBotNewUsers;
 
   /**
-   * Boolean on if TellBot is enabled. If not specified in irc.properties, assumed false.
-   */
-  protected boolean enableTellBot;
-
-  /**
    * Boolean on if UpdateChecker is enabled. If not specified in irc.properties, assumed false. Only
    * used in initialization. To determine if the UpdateChecker is currently running, see if checker
    * != null.
@@ -129,11 +124,6 @@ public class GEMWbot implements IRCEventListener {
   private TieBot tieBotInstance;
 
   /**
-   * The instance of TellBot currently running. Null if not running.
-   */
-  private TellBot tellBotInstance;
-
-  /**
    * The instance of UpdateChecker currently running. Null if not running.
    */
   private UpdateChecker checker;
@@ -146,8 +136,8 @@ public class GEMWbot implements IRCEventListener {
   /**
    * Constructor.
    * 
-   * Loads our settings and opens the IRC connection. Based on settings, enables TellBot, TieBot,
-   * and UpdateChecker.
+   * Loads our settings and opens the IRC connection. Based on settings, enables TieBot and
+   * UpdateChecker.
    */
   public GEMWbot() {
     loadIRCsettings();
@@ -160,10 +150,6 @@ public class GEMWbot implements IRCEventListener {
 
     session = manager.requestConnection(ircServer);
     session.addIRCEventListener(this);
-
-    if (enableTellBot) {
-      addTellBotCommands();
-    }
 
     if (enableTieBot) {
       createTieBotInstance();
@@ -220,12 +206,6 @@ public class GEMWbot implements IRCEventListener {
         enableTieBotNewUsers = false;
       else
         enableTieBotNewUsers = temp.equals("true") ? true : false;
-
-      temp = ircSettings.getProperty("enableTellBot");
-      if (temp == null)
-        enableTellBot = false;
-      else
-        enableTellBot = temp.equals("true") ? true : false;
 
       temp = ircSettings.getProperty("enableChecker");
       if (temp == null)
@@ -637,46 +617,6 @@ public class GEMWbot implements IRCEventListener {
         channel.say(getStatusText(me.getNick()));
         break;
 
-      case "tellbot":
-        if (isMod) {
-          try {
-            String mode = fullCommand.split(" ")[1].toLowerCase();
-            boolean on;
-            if (mode.equalsIgnoreCase("on")) {
-              on = true;
-              enableTellBot = true;
-            } else if (mode.equalsIgnoreCase("off")) {
-              on = false;
-              enableTellBot = false;
-            } else {
-              channel.say(me.getNick() + ": Invalid syntax. Use ~tellbot on/off");
-              return;
-            }
-
-            if (on) {
-              if (tellBotInstance != null) {
-                channel.say(me.getNick() + ": TellBot is already running!");
-              } else {
-                addTellBotCommands();
-              }
-            } else {
-              if (tellBotInstance == null) {
-                channel.say(me.getNick() + ": TellBot isn't running!");
-              } else {
-                channel.say(me.getNick() + ": Stopping TellBot!");
-                tellBotInstance.cleanupBeforeQuit();
-                session.removeIRCEventListener(tellBotInstance);
-                tellBotInstance = null;
-              }
-            }
-          } catch (IndexOutOfBoundsException e) {
-            channel.say(me.getNick() + ": Invalid syntax. Use ~tellbot on/off!");
-          }
-        } else {
-          channel.say(me.getNick() + ": You're not allowed to use the ~tellbot command");
-        }
-        break;
-
       case "checker":
         if (isMod) {
           try {
@@ -778,7 +718,6 @@ public class GEMWbot implements IRCEventListener {
       ircSettings.setProperty("nickServPass", nickServPass);
       ircSettings.setProperty("enableTieBot", "" + enableTieBot);
       ircSettings.setProperty("enableTieBotNewUsers", "" + enableTieBotNewUsers);
-      ircSettings.setProperty("enableTellBot", "" + enableTellBot);
       ircSettings.setProperty("feedNetwork", feedNetwork);
       ircSettings.setProperty("feedPort", "" + feedPort);
       ircSettings.setProperty("enableChecker", "" + enableChecker);
@@ -927,29 +866,12 @@ public class GEMWbot implements IRCEventListener {
   }
 
   /**
-   * Returns the instance of TellBot that is currently running.
-   * 
-   * @return TellBot instance or null if not running
-   */
-  public TellBot getTellBotInstance() {
-    return tellBotInstance;
-  }
-
-  /**
    * Returns the instance of TieBot that is currently running.
    * 
    * @return TieBot instance or null if not running
    */
   public TieBot getTieBotinstance() {
     return tieBotInstance;
-  }
-
-  /**
-   * Adds the TellBot event listener to our IRC session so it can receive commands.
-   */
-  private void addTellBotCommands() {
-    tellBotInstance = new TellBot();
-    session.addIRCEventListener(tellBotInstance);
   }
 
   /**
@@ -971,8 +893,8 @@ public class GEMWbot implements IRCEventListener {
 
     out +=
         "Uptime: " + getUptime() + " TieBot: " + (enableTieBot ? "on" : "off") + " NewUsersFeed: "
-            + (enableTieBotNewUsers ? "on" : "off") + " TellBot: " + (enableTellBot ? "on" : "off")
-            + " Update Checker: " + ((checker != null) ? "on" : "off");
+            + (enableTieBotNewUsers ? "on" : "off") + " Update Checker: "
+            + ((checker != null) ? "on" : "off");
 
     return out;
 
