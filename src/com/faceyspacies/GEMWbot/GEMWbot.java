@@ -27,7 +27,7 @@ import jerklib.listeners.IRCEventListener;
 
 /**
  * The main class of GEMWbot. It handles the startup and the base of all IRC functions. It starts
- * all subfunctions, such as the GrandExchangeUpdater, TieBot and the UpdateChecker.
+ * all subfunctions, such as the GrandExchangeUpdater and the UpdateChecker.
  * 
  * @author Ty
  *
@@ -81,27 +81,6 @@ public class GEMWbot implements IRCEventListener {
   private String nickServPass;
 
   /**
-   * Used for TieBot. The IRC network that the edit feed is on. Set in irc.properties.
-   */
-  private String feedNetwork;
-
-  /**
-   * Used for TieBot. The port to connect to the IRC network on. Set in irc.properties.
-   */
-  private int feedPort;
-
-  /**
-   * Boolean on if TieBot is enabled. If not specified in irc.properties, assumed false.
-   */
-  protected boolean enableTieBot;
-
-  /**
-   * Boolean on if TieBot is reporting new user creations into #cvn-wikia-newusers. If not specified
-   * in irc.properties, assumed false.
-   */
-  protected boolean enableTieBotNewUsers;
-
-  /**
    * Boolean on if UpdateChecker is enabled. If not specified in irc.properties, assumed false. Only
    * used in initialization. To determine if the UpdateChecker is currently running, see if checker
    * != null.
@@ -112,16 +91,6 @@ public class GEMWbot implements IRCEventListener {
    * The IRC session. Mostly used to send private messages to users.
    */
   private Session session;
-
-  /**
-   * The IRC session for TieBot. Mostly used to close the session.
-   */
-  private Session rcSession;
-
-  /**
-   * The instance of TieBot that is currently running. Null if not running
-   */
-  private TieBot tieBotInstance;
 
   /**
    * The instance of UpdateChecker currently running. Null if not running.
@@ -136,24 +105,17 @@ public class GEMWbot implements IRCEventListener {
   /**
    * Constructor.
    * 
-   * Loads our settings and opens the IRC connection. Based on settings, enables TieBot and
-   * UpdateChecker.
+   * Loads our settings and opens the IRC connection. Based on settings, enables UpdateChecker.
    */
   public GEMWbot() {
     loadIRCsettings();
     updateTask = null;
-    tieBotInstance = null;
-    rcSession = null;
     checker = null;
 
     manager = new ConnectionManager(new Profile(ircNick));
 
     session = manager.requestConnection(ircServer);
     session.addIRCEventListener(this);
-
-    if (enableTieBot) {
-      createTieBotInstance();
-    }
 
     // The startChecker() method checks if the checker is enabled, so no need
     // to check here.
@@ -186,26 +148,7 @@ public class GEMWbot implements IRCEventListener {
       ircChannel = ircSettings.getProperty("ircChannel");
       nickServUser = ircSettings.getProperty("nickServUser");
       nickServPass = ircSettings.getProperty("nickServPass");
-      feedNetwork = ircSettings.getProperty("feedNetwork");
-
-      try {
-        feedPort = Integer.parseInt(ircSettings.getProperty("feedPort"));
-      } catch (NumberFormatException e) {
-        System.out.println("[ERROR] feedPort is missing from irc.properties or invalid; closing");
-        System.exit(0);
-      }
-
-      String temp = ircSettings.getProperty("enableTieBot");
-      if (temp == null)
-        enableTieBot = false;
-      else
-        enableTieBot = temp.equals("true") ? true : false;
-
-      temp = ircSettings.getProperty("enableTieBotNewUsers");
-      if (temp == null)
-        enableTieBotNewUsers = false;
-      else
-        enableTieBotNewUsers = temp.equals("true") ? true : false;
+      String temp;
 
       temp = ircSettings.getProperty("enableChecker");
       if (temp == null)
@@ -245,11 +188,6 @@ public class GEMWbot implements IRCEventListener {
 
       if (adminHosts == null) {
         System.out.println("[ERROR] nickServPass is missing from irc.properties; closing");
-        System.exit(0);
-      }
-
-      if (feedNetwork == null) {
-        System.out.println("[ERROR] feedNetwork is missing from irc.properties; closing");
         System.exit(0);
       }
 
@@ -328,9 +266,6 @@ public class GEMWbot implements IRCEventListener {
       }
       if (eventCode == 396) {
         e.getSession().join(ircChannel);
-        if (enableTieBotNewUsers) {
-          e.getSession().join("#cvn-wikia-newusers");
-        }
       }
     }
   }
@@ -469,149 +404,6 @@ public class GEMWbot implements IRCEventListener {
         }
         break;
 
-      case "tiebot":
-        if (isMod) {
-          try {
-            String mode = fullCommand.split(" ")[1].toLowerCase();
-            boolean on;
-            if (mode.equalsIgnoreCase("on")) {
-              on = true;
-              enableTieBot = true;
-            } else if (mode.equalsIgnoreCase("off")) {
-              on = false;
-              enableTieBot = false;
-            } else {
-              channel.say(me.getNick() + ": Invalid syntax. Use ~tiebot on/off");
-              return;
-            }
-
-            if (on) {
-              // if we have an instance and we already have it set to read wiki discussions
-              if (tieBotInstance != null && tieBotInstance.getWikiDiscussionsFeed()) {
-                channel.say(me.getNick() + ": TieBot is already running!");
-                return;
-                // if we have an instance, but the wiki discussions isn't running start it
-              } else if (tieBotInstance != null) {
-                channel.say(me.getNick() + ": Starting TieBot!");
-                tieBotInstance.setWikiDiscussionsFeed(true);
-                return;
-              }
-
-              // no instance
-              createTieBotInstance();
-              channel.say(me.getNick() + ": Starting TieBot!");
-            } else { // stop running
-              if (tieBotInstance == null) {
-                channel.say(me.getNick() + ": TieBot isn't running!");
-                return;
-              }
-
-              // mark as off
-              channel.say(me.getNick() + ": Stopping TieBot!");
-              tieBotInstance.setWikiDiscussionsFeed(false);
-
-              // If neither mode is running, just quit
-              if (!tieBotInstance.getWikiDiscussionsFeed() && !tieBotInstance.getNewUsersFeed()) {
-                rcSession.close("Requested by " + me.getNick());
-                tieBotInstance = null;
-                return;
-              }
-
-            }
-          } catch (IndexOutOfBoundsException err) {
-            channel.say(me.getNick() + ": Invalid syntax. Use ~tiebot on/off!");
-            return;
-          }
-        } else {
-          session.sayPrivate(me.getNick(), "You are not allowed to use the ~tiebot command");
-        }
-        break;
-
-      case "newusers":
-        if (isAdmin) {
-          try {
-            String mode = fullCommand.split(" ")[1].toLowerCase();
-            boolean on;
-            if (mode.equalsIgnoreCase("on")) {
-              on = true;
-              enableTieBotNewUsers = true;
-            } else if (mode.equalsIgnoreCase("off")) {
-              on = false;
-              enableTieBotNewUsers = false;
-            } else {
-              channel.say(me.getNick() + ": Invalid syntax. Use ~newusers on/off");
-              return;
-            }
-
-            if (on) {
-              // if we have an instance and we already have it set to read wiki discussions
-              if (tieBotInstance != null && tieBotInstance.getNewUsersFeed()) {
-                channel.say(me.getNick() + ": NewUsers is already running!");
-                return;
-                // if we have an instance, but the new users isn't running; start it
-              } else if (tieBotInstance != null) {
-                me.getSession().join("#cvn-wikia-newusers");
-                channel.say(me.getNick() + ": Starting new users feed!");
-                tieBotInstance.setNewUsersFeed(true);
-                return;
-              }
-
-              // no instance
-              me.getSession().join("#cvn-wikia-newusers");
-              createTieBotInstance();
-              channel.say(me.getNick() + ": Starting new users feed!");
-            } else { // stop running
-              if (tieBotInstance == null) {
-                channel.say(me.getNick() + ": new users feed isn't running!");
-                return;
-              }
-
-              // mark as off
-              channel.say(me.getNick() + ": Stopping new users feed!");
-              tieBotInstance.setNewUsersFeed(false);
-              me.getSession().getChannel("#cvn-wikia-newusers")
-                  .part("Requested by " + me.getNick());
-
-              // If neither mode is running, just quit
-              if (!tieBotInstance.getWikiDiscussionsFeed() && !tieBotInstance.getNewUsersFeed()) {
-                rcSession.close("Requested by " + me.getNick());
-                tieBotInstance = null;
-                return;
-              }
-
-            }
-          } catch (IndexOutOfBoundsException err) {
-            channel.say(me.getNick() + ": Invalid syntax. Use ~newusers on/off!");
-            return;
-          }
-        } else {
-          session.sayPrivate(me.getNick(), "You are not allowed to use the ~newusers command");
-        }
-        break;
-
-      case "hush":
-        if (tieBotInstance == null) {
-          channel.say(me.getNick() + ": TieBot isn't running!");
-          return;
-        } else {
-          String time = fullCommand.split(" ")[1];
-          long hushTime = System.currentTimeMillis() + (Integer.parseInt(time) * 60000);
-          tieBotInstance.hush(hushTime);
-
-          channel.say(me.getNick() + ": Hushing for " + time + " mins!");
-        }
-        break;
-
-      case "unhush":
-        if (tieBotInstance == null) {
-          channel.say(me.getNick() + ": TieBot is not running!");
-          return;
-        } else {
-          tieBotInstance.unhush();
-          channel.say(me.getNick() + ": No longer hushed!");
-        }
-        break;
-
       case "astatus":
       case "status":
         channel.say(getStatusText(me.getNick()));
@@ -716,10 +508,6 @@ public class GEMWbot implements IRCEventListener {
       ircSettings.setProperty("ircChannel", ircChannel);
       ircSettings.setProperty("nickServUser", nickServUser);
       ircSettings.setProperty("nickServPass", nickServPass);
-      ircSettings.setProperty("enableTieBot", "" + enableTieBot);
-      ircSettings.setProperty("enableTieBotNewUsers", "" + enableTieBotNewUsers);
-      ircSettings.setProperty("feedNetwork", feedNetwork);
-      ircSettings.setProperty("feedPort", "" + feedPort);
       ircSettings.setProperty("enableChecker", "" + enableChecker);
 
       ircSettings.store(output, "GEMWbot's IRC Settings");
@@ -845,33 +633,12 @@ public class GEMWbot implements IRCEventListener {
   }
 
   /**
-   * Creates our TieBot object and adds the event listener for it.
-   */
-  private void createTieBotInstance() {
-    rcSession = manager.requestConnection(feedNetwork, feedPort);
-    tieBotInstance = new TieBot(manager, this);
-    rcSession.addIRCEventListener(tieBotInstance);
-
-    tieBotInstance.setNewUsersFeed(enableTieBotNewUsers);
-    tieBotInstance.setWikiDiscussionsFeed(enableTieBot);
-  }
-
-  /**
    * Returns the instance of GrandExchangeUpdater that is currently running.
    * 
    * @return GrandExchangeUpdater instance or null if not running
    */
   public GrandExchangeUpdater getGEMWinstance() {
     return updateTask;
-  }
-
-  /**
-   * Returns the instance of TieBot that is currently running.
-   * 
-   * @return TieBot instance or null if not running
-   */
-  public TieBot getTieBotinstance() {
-    return tieBotInstance;
   }
 
   /**
@@ -891,10 +658,7 @@ public class GEMWbot implements IRCEventListener {
               + updateTask.getNumberOfPages() + "! ";
     }
 
-    out +=
-        "Uptime: " + getUptime() + " TieBot: " + (enableTieBot ? "on" : "off") + " NewUsersFeed: "
-            + (enableTieBotNewUsers ? "on" : "off") + " Update Checker: "
-            + ((checker != null) ? "on" : "off");
+    out += "Uptime: " + getUptime() + " Update Checker: " + ((checker != null) ? "on" : "off");
 
     return out;
 
