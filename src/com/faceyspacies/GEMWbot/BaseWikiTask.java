@@ -92,6 +92,11 @@ abstract class BaseWikiTask implements Runnable {
    */
   protected String timestamp;
 
+  /**
+   * Whether we're running in rs or os mode
+   */
+  protected String mode;
+
 
   /**
    * Our constructor. It loads the settings from gemw.properties, creates the wikiBot object and
@@ -141,6 +146,7 @@ abstract class BaseWikiTask implements Runnable {
       wikiUserPass = settings.getProperty("wikiUserPass");
       logPage = settings.getProperty("logPage");
       wikiURL = settings.getProperty("wikiURL");
+      mode = settings.getProperty("mode");
 
       if (wikiUserName == null) {
         System.out.println("[ERROR] wikiUserName is missing from gemw.properties; closing");
@@ -161,6 +167,21 @@ abstract class BaseWikiTask implements Runnable {
       if (wikiURL == null) {
         System.out.println("[ERROR] wikiURL is missing from gemw.properties; closing");
         return false;
+      }
+
+      if (mode == null) {
+        System.out.println("Mode isn't definied, assuming rs");
+      } else {
+        mode = mode.toLowerCase();
+        if (!(mode.equals("rs") || mode.equals("os"))) {
+          System.out.println("Unknown mode " + mode + ". Assuming rs");
+          mode = "rs";
+
+        }
+      }
+
+      if (mode.equals("os")) {
+        rsGraphAPILink = "http://services.runescape.com/m=itemdb_oldschool/api/graph/";
       }
 
     } catch (FileNotFoundException err) {

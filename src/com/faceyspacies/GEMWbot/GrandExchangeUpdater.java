@@ -219,8 +219,14 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 
     while (failures < 3) {
       try {
+        String[] pages;
         // test wiki does not have namespace 112, but main wiki does
-        String[] pages = wikiBot.getCategoryMembers("Grand Exchange", 112);
+        if (mode.equals("os")) {
+          pages = wikiBot.getCategoryMembers("Grand Exchange", 114);
+        } else {
+          pages = wikiBot.getCategoryMembers("Grand Exchange", 112);
+        }
+
         // String[] pages = wikiBot.getCategoryMembers("Grand Exchange");
         return pages;
       } catch (IOException e1) {
@@ -583,7 +589,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         temp.add("Exchange:" + item);
       }
       return temp;
-    } catch (IOException e) {
+    } catch (IOException | NullPointerException e) {
       return new ArrayList<String>();
     }
 
