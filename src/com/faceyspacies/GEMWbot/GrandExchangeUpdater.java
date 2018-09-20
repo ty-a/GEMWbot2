@@ -134,7 +134,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         try {
           Thread.sleep(2500);
         } catch (InterruptedException e) {
-          ircInstance.sendMessage("rswiki", "UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW");
+          main.sendMessageToTy("UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW");
         }
       } else { // if no longer running, stop loop and end
         return;
@@ -156,9 +156,9 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 
     updateLogPage();
 
-    ircInstance.setUpdateTaskToNull();
-    ircInstance.startChecker();
-    ircInstance.sendMessage(ircChannel, "GE Updates complete!"); // if we make it to end, we did it
+    main.setUpdateTaskToNull();
+    main.startChecker();
+    main.sendMessageToWikiChannel("GE Updates complete!"); // if we make it to end, we did it
   }
 
   /**
@@ -189,7 +189,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         }
       } catch (PriceIsZeroException e) {
         if (!haveWarnedOnPriceOfZero) {
-          ircInstance.sendMessage("rswiki", "HAD A ZERO PRICE; FREAKING OUT RIGHT NOW. CHECK LOG.");
+          main.sendMessageToTy("HAD A ZERO PRICE; FREAKING OUT RIGHT NOW. CHECK LOG.");
           haveWarnedOnPriceOfZero = true;
         }
 
@@ -232,7 +232,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       } catch (IOException e1) {
         failures++;
         if (failures == 3) {
-          ircInstance.sendMessage("rswiki", "I was unable to get the page list.");
+          main.sendMessageToTy("I was unable to get the page list.");
           return null;
         }
       }

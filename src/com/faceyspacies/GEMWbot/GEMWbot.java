@@ -3,26 +3,19 @@ package com.faceyspacies.GEMWbot;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
-import jerklib.Channel;
-import jerklib.ConnectionManager;
-import jerklib.Profile;
-import jerklib.Session;
-import jerklib.events.IRCEvent;
-import jerklib.events.IRCEvent.Type;
-import jerklib.events.MessageEvent;
-import jerklib.listeners.IRCEventListener;
+import sx.blah.discord.api.ClientBuilder;
+import sx.blah.discord.api.IDiscordClient;
+import sx.blah.discord.api.events.EventSubscriber;
+import sx.blah.discord.handle.impl.events.ReadyEvent;
+
+import com.faceyspacies.GEMWbot.Commands.CommandHandler;
 
 
 /**
@@ -32,53 +25,7 @@ import jerklib.listeners.IRCEventListener;
  * @author Ty
  *
  */
-public class GEMWbot implements IRCEventListener {
-  /**
-   * The connection manager that allows us access to the IRC methods.
-   */
-  private ConnectionManager manager;
-
-  /**
-   * GEMWbot's default IRC nick. It is loaded from irc.properties. After initial setup, it is not
-   * used.
-   */
-  private String ircNick;
-
-  /**
-   * The IRC Server the bot will connect to. It is loaded from irc.properties. After initial setup,
-   * it is not used.
-   */
-  private String ircServer;
-
-  /**
-   * An List which contains the hosts of users who are considered "mods" of the bot. Allows access
-   * to privileged commands such as "~update". Users are added to this list either by editing
-   * irc.properties or by using the "~allow" command.
-   */
-  private List<String> allowedHosts;
-
-  /**
-   * A List which contains the hosts of users who are considered "admins" of the bot. Allows access
-   * to priviledged commands such as "~die". Users are added to this list manually by editing
-   * irc.properties.
-   */
-  private List<String> adminHosts;
-
-  /**
-   * The IRC channel that the bot will join after it connects to the IRC network. Loaded from
-   * irc.properties.
-   */
-  protected String ircChannel;
-
-  /**
-   * The bot's NickServ username. Used for authentication to NickServ. Set in irc.properties.
-   */
-  private String nickServUser;
-
-  /**
-   * The bot's NickServ password. Used for authentication to NickServ. Set in irc.properties.
-   */
-  private String nickServPass;
+public class GEMWbot {
 
   /**
    * Boolean on if UpdateChecker is enabled. If not specified in irc.properties, assumed false. Only
@@ -86,11 +33,6 @@ public class GEMWbot implements IRCEventListener {
    * != null.
    */
   protected boolean enableChecker;
-
-  /**
-   * The IRC session. Mostly used to send private messages to users.
-   */
-  private Session session;
 
   /**
    * The instance of UpdateChecker currently running. Null if not running.
@@ -103,94 +45,86 @@ public class GEMWbot implements IRCEventListener {
   private GrandExchangeUpdater updateTask;
 
   /**
+   * Decides if Discord has fired off a DiscordReady Event yet.
+   */
+  private boolean discordReady = false;
+
+  /**
+   * Our Discord token that allows the bot to log into Discord
+   */
+  private String token;
+
+  /**
+   * Ty's User ID to allow the bot to PM Ty
+   */
+  private long TyUserId;
+
+  /**
+   * The ID of the #bots channel to allow the bot to send messages there unprovoked
+   */
+  private long BotsChannelId;
+
+  /**
+   * The ID of the #wiki channel to allow the bot to send messages there unprovoked
+   */
+  private long WikiChannelId;
+
+  private IDiscordClient discord;
+
+  /**
+   * The prefix for commands
+   */
+  private String prefix;
+
+  /**
    * Constructor.
    * 
    * Loads our settings and opens the IRC connection. Based on settings, enables UpdateChecker.
    */
   public GEMWbot() {
-    loadIRCsettings();
+    loadDiscordSettings();
     updateTask = null;
     checker = null;
 
-    manager = new ConnectionManager(new Profile(ircNick));
-
-    session = manager.requestConnection(ircServer);
-    session.addIRCEventListener(this);
+    discord = createClient();
 
     // The startChecker() method checks if the checker is enabled, so no need
     // to check here.
     startChecker();
-
   }
 
   /**
-   * Loads IRC settings from our irc.properties file.
+   * Loads Discord settings from our discord.properties file.
    * 
    * Some settings are only optional, so if they are not provided, it assigns a default. Other
    * settings are required, and the program will quit without them. It will print a line to the
    * console alerting the operator to it.
    */
-  private void loadIRCsettings() {
-    Properties ircSettings = new Properties();
+  private void loadDiscordSettings() {
+    Properties settings = new Properties();
     InputStream input = null;
 
     try {
-      File settingsFileLocation = new File("irc.properties");
+      File settingsFileLocation = new File("discord.properties");
       input = new FileInputStream(settingsFileLocation);
 
-      ircSettings.load(input);
+      settings.load(input);
 
-      ircNick = ircSettings.getProperty("ircNick");
-      ircServer = ircSettings.getProperty("ircServer");
-      allowedHosts =
-          new ArrayList<String>(Arrays.asList(ircSettings.getProperty("allowedHosts").split(",")));
-      adminHosts = Arrays.asList(ircSettings.getProperty("adminHosts").split(","));
-      ircChannel = ircSettings.getProperty("ircChannel");
-      nickServUser = ircSettings.getProperty("nickServUser");
-      nickServPass = ircSettings.getProperty("nickServPass");
+      TyUserId = Long.parseLong(settings.getProperty("TyUserId"));
+      token = settings.getProperty("token");
+      BotsChannelId = Long.parseLong(settings.getProperty("botChannelId"));
+      WikiChannelId = Long.parseLong(settings.getProperty("wikiChannelId"));
+      prefix = settings.getProperty("prefix");
+
+
       String temp;
 
-      temp = ircSettings.getProperty("enableChecker");
+      temp = settings.getProperty("enableChecker");
       if (temp == null)
         enableChecker = false;
       else
         enableChecker = temp.equals("true") ? true : false;
 
-      if (ircNick == null) {
-        System.out.println("[ERROR] ircNick is missing from irc.properties; closing");
-        System.exit(0);
-      }
-
-      if (ircServer == null) {
-        System.out.println("[ERROR] ircServer is missing from irc.properties; closing");
-        System.exit(0);
-      }
-
-      if (allowedHosts == null) {
-        System.out.println("[ERROR] allowedHosts is missing from irc.properties; closing");
-        System.exit(0);
-      }
-
-      if (ircChannel == null) {
-        System.out.println("[ERROR] ircChannel is missing from irc.properties; closing");
-        System.exit(0);
-      }
-
-      if (nickServUser == null) {
-        System.out.println("[ERROR] nickServUser is missing from irc.properties; closing");
-        System.exit(0);
-      }
-
-      if (nickServPass == null) {
-        System.out.println("[ERROR] nickServPass is missing from irc.properties; closing");
-        System.exit(0);
-      }
-
-      if (adminHosts == null) {
-        System.out.println("[ERROR] nickServPass is missing from irc.properties; closing");
-        System.exit(0);
-      }
-
     } catch (FileNotFoundException err) {
       System.out.println("[ERROR] Unable to load irc.properties file; closing");
       System.exit(0);
@@ -199,356 +133,6 @@ public class GEMWbot implements IRCEventListener {
       System.exit(0);
     }
 
-  }
-
-  /*
-   * (non-Javadoc)
-   * 
-   * @see jerklib.listeners.IRCEventListener#receiveEvent(jerklib.events.IRCEvent)
-   */
-  @Override
-  public void receiveEvent(IRCEvent e) {
-    if (e.getType() == Type.CONNECT_COMPLETE) {
-      loginToNickServ(e.getSession());
-
-    }
-
-    else if (e.getType() == Type.CHANNEL_MESSAGE) {
-      MessageEvent me = (MessageEvent) e;
-
-      // If we are not running the UpdateChecker, listen for RuneScript to announce a GE Update
-      if (checker == null) {
-        if (me.getMessage().contains(
-            "The Grand Exchange has been updated. RuneScript last detected an update")
-            && me.getNick().contains("RuneScript")) {
-
-          Channel channel = e.getSession().getChannel(ircChannel);
-          try {
-            // If the GrandExchangeUpdater is not already running, start it.
-            if (updateTask == null) {
-              channel.say("Starting GE Updates!");
-              updateTask = new GrandExchangeUpdater(this);
-              Thread thread = new Thread(updateTask);
-              thread.start();
-            }
-          } catch (Exception err) {
-            channel.say("Failed to start GE Updater.");
-          }
-        }
-      }
-
-      if (me.getMessage().charAt(0) == '~') { // we have a command as ~ is our trigger
-        commandHandler(me);
-      } else {
-        return; // no command
-      }
-    } else if (e.getType() == Type.DEFAULT) {
-
-      // Library handles PING, ignore it
-      if (e.getRawEventData().substring(0, 4).equalsIgnoreCase("PING")) {
-        return;
-      }
-
-      int eventCode;
-      int firstIndex, secondIndex;
-      /*
-       * example of raw event data server eventCode <varies on code> :weber.freenode.net 396 TyBot2
-       * wikia/TyBot :is now your hidden host (set by services.) 396 is auth'd to services on
-       * freenode
-       */
-      firstIndex = e.getRawEventData().indexOf(" ") + 1;
-      secondIndex = e.getRawEventData().indexOf(" ", firstIndex); // .substring automatically -1s
-                                                                  // from the endIndex
-      try {
-        eventCode = Integer.parseInt(e.getRawEventData().substring(firstIndex, secondIndex));
-      } catch (NumberFormatException err) {
-        return; // no need to continue
-      }
-      if (eventCode == 396) {
-        e.getSession().join(ircChannel);
-      }
-    }
-  }
-
-  /**
-   * Processes MessageEvent received and performs the command, if any, that the user requested.
-   * 
-   * @param me MessageEvent that sent a message that started with ~
-   */
-  private void commandHandler(MessageEvent me) {
-    Session session = manager.getSession(ircServer);
-    Channel channel = me.getChannel();
-    String command = "";
-    String fullCommand = me.getMessage();
-    boolean isMod;
-    boolean isAdmin;
-
-    if (fullCommand.indexOf(" ") != -1) {
-      // index 1 is start of command after trigger
-      command = fullCommand.substring(1, fullCommand.indexOf(" "));
-
-    } else {
-      command = fullCommand.substring(1);
-    }
-
-    isAdmin = isAdmin(me.getHostName());
-    if (isAdmin)
-      isMod = true;
-    else
-      isMod = isMod(me.getHostName());
-
-    switch (command.toLowerCase()) {
-      case "adie":
-      case "die":
-        if (isAdmin) {
-          manager.quit("Requested");
-
-          if (updateTask != null) {
-            updateTask.stopRunning();
-          }
-
-          if (checker != null) {
-            checker.stopRunning();
-          }
-
-          System.exit(0);
-
-
-        } else {
-          session.sayPrivate(me.getNick(), "You are not allowed to use the ~die command.");
-        }
-
-        break;
-
-      case "nick":
-        if (isAdmin) {
-          try {
-            session.changeNick(fullCommand.split(" ")[1]);
-          } catch (IndexOutOfBoundsException err) {
-            channel.say(me.getNick() + ": You forgot to specify a nick");
-          }
-        } else {
-          session.sayPrivate(me.getNick(), "You are not allowed to use the ~nick command.");
-        }
-        break;
-
-      case "test":
-        channel.say(me.getNick() + ": Hai <3!");
-        break;
-
-      case "log":
-        channel.say(me.getNick() + ": http://runescape.wikia.com/wiki/User:TyBot/log");
-        break;
-
-      case "update":
-        if (updateTask != null) {
-          channel.say(me.getNick() + ": GE Updater is already running!");
-          break;
-        }
-        if (isMod) {
-          channel.say(me.getNick() + ": Starting GE Updates!");
-          try {
-            updateTask = new GrandExchangeUpdater(this);
-            Thread thread = new Thread(updateTask);
-            thread.start();
-
-            if (checker != null)
-              checker.stopRunning();
-          } catch (Exception err) {
-            channel.say("Failed to start GE Updater.");
-          }
-        } else {
-          session.sayPrivate(me.getNick(), "You are not allowed to use the ~update command.");
-        }
-        break;
-
-      case "allow":
-        if (isMod) {
-          try {
-            if (allowedHosts.contains(fullCommand.split(" ")[1])) {
-              channel.say(me.getNick() + ": " + fullCommand.split(" ")[1]
-                  + " is already allowed to use ~update");
-              return;
-            }
-            allowedHosts.add(fullCommand.split(" ")[1]);
-            saveSettings();
-
-            channel.say(me.getNick() + ": " + fullCommand.split(" ")[1]
-                + " is now allowed to use ~update");
-          } catch (IndexOutOfBoundsException err) {
-            channel.say(me.getNick() + ": You forgot to specify a host");
-          }
-        } else {
-          session.sayPrivate(me.getNick(), "You are not allowed to use the ~allow command.");
-        }
-        break;
-
-      case "disallow":
-        if (isMod) {
-          try {
-            if (!allowedHosts.contains(fullCommand.split(" ")[1])) {
-              channel.say(me.getNick() + ": " + fullCommand.split(" ")[1]
-                  + " isn't allowed to use ~update");
-              return;
-            }
-            allowedHosts.remove(fullCommand.split(" ")[1]);
-            saveSettings();
-
-            channel.say(me.getNick() + ": " + fullCommand.split(" ")[1]
-                + " is no longer allowed to use ~update");
-          } catch (IndexOutOfBoundsException err) {
-            channel.say(me.getNick() + ": You forgot to specify a host");
-          }
-        } else {
-          session.sayPrivate(me.getNick(), "You are not allowed to use the ~disallow command.");
-        }
-        break;
-
-      case "astatus":
-      case "status":
-        channel.say(getStatusText(me.getNick()));
-        break;
-
-      case "checker":
-        if (isMod) {
-          try {
-            String mode = fullCommand.split(" ")[1].toLowerCase();
-            boolean on;
-            if (mode.equalsIgnoreCase("on")) {
-              on = true;
-            } else if (mode.equalsIgnoreCase("off")) {
-              on = false;
-            } else {
-              channel.say(me.getNick() + ": Invalid syntax. Use ~checker on/off");
-              return;
-            }
-
-            if (on) {
-              if (checker != null) {
-                channel.say(me.getNick() + ": Update Checker is already running!");
-                return;
-              }
-
-              startChecker();
-              channel.say(me.getNick() + ": Starting Update Checker!");
-            } else { // stop running
-              if (checker == null) {
-                channel.say(me.getNick() + ": Update Checker isn't running!");
-                return;
-              }
-
-              channel.say(me.getNick() + ": Stopping Update Checker!");
-              checker.stopRunning();
-
-            }
-          } catch (IndexOutOfBoundsException err) {
-            channel.say(me.getNick() + ": Invalid syntax. Use ~checker on/off!");
-            return;
-          }
-        } else {
-          session.sayPrivate(me.getNick(), "You are not allowed to use the checker command");
-        }
-        break;
-
-      case "allowed":
-        String hosts = "";
-
-        for (int i = 0; i < allowedHosts.size(); i++) {
-          hosts += allowedHosts.get(i) + ",";
-        }
-
-        hosts = hosts.substring(0, hosts.length() - 1);
-
-        channel.say(me.getNick() + ": " + hosts + " are allowed to use ~update");
-        break;
-
-      case "help":
-        channel.say(me.getNick() + ": My commands can be found on my userpage at [[User:TyBot]].");
-        break;
-
-      case "source":
-        channel.say(me.getNick()
-            + ": My source code is available at https://github.com/ty-a/GEMWbot2");
-        break;
-    }
-  }
-
-  /**
-   * Saves settings that may have been modified back into irc.properties. <br />
-   * IMPORTANT: If you add a new setting to the irc.properties file, make sure it is saved here.
-   * Otherwise calling this will REMOVE that setting.
-   */
-  private void saveSettings() {
-
-
-    try {
-      Properties ircSettings = new Properties();
-      File settingsFileLocation = new File("irc.properties");
-      OutputStream output = new FileOutputStream(settingsFileLocation);
-
-      ircSettings.setProperty("ircNick", ircNick);
-      ircSettings.setProperty("ircServer", ircServer);
-      String hosts = "";
-
-      for (int i = 0; i < allowedHosts.size(); i++) {
-        hosts += allowedHosts.get(i) + ",";
-      }
-
-      hosts = hosts.substring(0, hosts.length() - 1);
-
-      ircSettings.setProperty("allowedHosts", hosts);
-
-      hosts = "";
-      for (int i = 0; i < adminHosts.size(); i++) {
-        hosts += adminHosts.get(i) + ",";
-      }
-      hosts = hosts.substring(0, hosts.length() - 1);
-
-      ircSettings.setProperty("adminHosts", hosts);
-      ircSettings.setProperty("ircChannel", ircChannel);
-      ircSettings.setProperty("nickServUser", nickServUser);
-      ircSettings.setProperty("nickServPass", nickServPass);
-      ircSettings.setProperty("enableChecker", "" + enableChecker);
-
-      ircSettings.store(output, "GEMWbot's IRC Settings");
-
-    } catch (FileNotFoundException err) {
-      System.out.println("[ERROR] Unable to load irc.properties file; closing");
-      System.exit(0);
-    } catch (IOException e) {
-      System.out.println("[ERROR] IO Error loading irc.properties; closing");
-      System.exit(0);
-    }
-  }
-
-  /**
-   * Logs the bot into NickServ. It does it by sending a Private Message to NickServ with the
-   * nickServUser and nickServPass loaded in from irc.properties.
-   * 
-   * @param session The IRC session we are connected to.
-   */
-  private void loginToNickServ(Session session) {
-    session.sayPrivate("NickServ", "IDENTIFY " + nickServUser + " " + nickServPass);
-  }
-
-  /**
-   * Determines if the host is a mod of the bot, being in the allowedHosts field.
-   * 
-   * @param host The host of the user.
-   * @return boolean on if user is a mod
-   */
-  private boolean isMod(String host) {
-    return allowedHosts.contains(host);
-  }
-
-  /**
-   * Determines if the host is an admin of the bot, being in the adminHosts field.
-   * 
-   * @param host The host of the user
-   * @return boolean on if user is an admin
-   */
-  private boolean isAdmin(String host) {
-    return adminHosts.contains(host);
   }
 
   /**
@@ -561,25 +145,16 @@ public class GEMWbot implements IRCEventListener {
   }
 
   /**
-   * A helper method to send a message to channelName.
+   * A helper method to send a message to Ty. Mostly used for error messages.
    * 
-   * @param channelName The channel to send the message to
    * @param message The message to send
    */
-  protected void sendMessage(String channelName, String message) {
-    Session session = manager.getSession(ircServer);
-    Channel channel = session.getChannel(channelName);
-
-    channel.say(message);
+  protected void sendMessageToTy(String message) {
+    discord.getUserByID(TyUserId).getOrCreatePMChannel().sendMessage(message);
   }
 
-  /**
-   * A Getter method which returns what IRC channel the bot is in
-   * 
-   * @return The channel we are in
-   */
-  public String getChannel() {
-    return ircChannel;
+  protected void sendMessageToWikiChannel(String message) {
+    discord.getChannelByID(WikiChannelId).sendMessage(message);
   }
 
   /**
@@ -616,17 +191,20 @@ public class GEMWbot implements IRCEventListener {
   /**
    * If the Grand Exchange Updater isn't already running, starts it.
    */
-  public void startUpdater() {
+  public void startUpdater(boolean makeAnnouncement) {
     if (updateTask == null) {
       try {
+
+        if (makeAnnouncement) {
+          sendMessageToWikiChannel("Detected a Grand Exchange Update, starting to update prices on the wiki.");
+        }
         updateTask = new GrandExchangeUpdater(this);
         Thread updateThread = new Thread(updateTask);
         updateThread.start();
-        manager.getSession(ircServer).getChannel(ircChannel)
-            .say("GE Update detected! Starting updates.... ");
+
         checker = null;
       } catch (Exception e) {
-        manager.getSession(ircServer).getChannel(ircChannel).say("Failed to start GE Updater!");
+        sendMessageToTy("Failed to start GE Updater :(");
       }
 
     }
@@ -642,19 +220,28 @@ public class GEMWbot implements IRCEventListener {
   }
 
   /**
+   * Returns the instance of UpdateChecker that is currently running.
+   * 
+   * @return UpdateChecker instance or null if not running
+   */
+  public UpdateChecker getChecker() {
+    return checker;
+  }
+
+  /**
    * Creates the Status text returned when using the ~status command.
    * 
    * @param nick The user who performed the ~status command
    * @return The status text
    */
-  public String getStatusText(String nick) {
+  public String getStatusText() {
     String out = "";
     if (updateTask == null) {
-      out = nick + ": The GE Updater is not running! ";
+      out = "The GE Updater is not running! ";
 
     } else {
       out =
-          nick + ": Updating page " + updateTask.getNumberOfPagesUpdated() + " out of "
+          "Updating page " + updateTask.getNumberOfPagesUpdated() + " out of "
               + updateTask.getNumberOfPages() + "! ";
     }
 
@@ -683,5 +270,27 @@ public class GEMWbot implements IRCEventListener {
     String uptime =
         String.format("%02d days %02d hours %02d minutes %02d seconds", day, hour, minute, second);
     return uptime;
+  }
+
+  public IDiscordClient createClient() {
+    ClientBuilder cb = new ClientBuilder();
+    cb.withToken(token);
+    cb.registerListener(new CommandHandler(this));
+    IDiscordClient client = cb.login();
+    return client;
+  }
+
+  @EventSubscriber
+  public void onReadyEvent(ReadyEvent event) {
+    discordReady = true;
+  }
+
+  /**
+   * Returns our command prefix
+   * 
+   * @return String prefix
+   */
+  public String getCommandPrefix() {
+    return prefix;
   }
 }

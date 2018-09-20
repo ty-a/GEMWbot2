@@ -31,6 +31,11 @@
         <id>jitpack.io</id>
         <url>https://jitpack.io</url>
     </repository>
+    <repository>
+    <id>jcenter</id>
+    <name>jcenter-bintray</name>
+    <url>http://jcenter.bintray.com</url>
+</repository>
 </repositories>
   
   <dependencies>
@@ -41,9 +46,9 @@
       <version>1.8.3</version>
     </dependency>
     <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-simple</artifactId>
-        <version>1.7.9</version>
-  </dependency>
+    <groupId>com.discord4j</groupId>
+    <artifactId>Discord4J</artifactId>
+    <version>2.10.1</version>
+</dependency>
   </dependencies>
 </project>

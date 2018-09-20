@@ -70,8 +70,9 @@ public class UpdateChecker extends BaseWikiTask {
     } catch (Exception err) {
       System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
       err.printStackTrace();
-      ircInstance.setCheckerToNull();
-      ircInstance.sendMessage("rswiki", "Error: " + err.getClass() + ": " + err.getMessage());
+      main.setCheckerToNull();
+      main.sendMessageToTy("Error in UpdateChecker: " + err.getClass() + ": "
+          + err.getMessage());
     }
   }
 
@@ -98,7 +99,7 @@ public class UpdateChecker extends BaseWikiTask {
         if (jagexPrice.equalsIgnoreCase(wikiPrice)) {
           continue;
         } else {
-          ircInstance.startUpdater();
+          main.startUpdater(true);
           running = false;
         }
       } catch (MalformedURLException e) {
@@ -114,12 +115,12 @@ public class UpdateChecker extends BaseWikiTask {
 
   }
 
-  @Override
   /**
-   * Stops the update checker. Does not stop a GE update if it has started. 
+   * Stops the update checker. Does not stop a GE update if it has started.
    */
-  protected void stopRunning() {
+  @Override
+  public void stopRunning() {
     running = false;
-    ircInstance.setCheckerToNull();
+    main.setCheckerToNull();
   }
 }

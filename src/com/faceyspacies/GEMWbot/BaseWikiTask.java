@@ -68,7 +68,7 @@ abstract class BaseWikiTask implements Runnable {
   /**
    * The GEMWbot instance that allows us access to IRC and other bot functions
    */
-  protected GEMWbot ircInstance;
+  protected GEMWbot main;
 
   /**
    * The page on the wiki the bot would log data to, such as errors
@@ -107,7 +107,7 @@ abstract class BaseWikiTask implements Runnable {
   BaseWikiTask(GEMWbot ircInstance) {
     if (!loadSettings()) {
       if (ircInstance != null)
-        ircInstance.sendMessage("rswiki", "failed to load config");
+        ircInstance.sendMessageToTy("failed to load config");
     };
 
     wikiBot = Wiki.createInstance(wikiURL, "", "https://");
@@ -120,8 +120,7 @@ abstract class BaseWikiTask implements Runnable {
     errorLog = "";
 
     if (ircInstance != null) {
-      ircChannel = ircInstance.getChannel();
-      this.ircInstance = ircInstance;
+      this.main = ircInstance;
     }
     timestamp = null;
 
@@ -206,7 +205,7 @@ abstract class BaseWikiTask implements Runnable {
     } catch (Exception err) {
       System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
       err.printStackTrace();
-      ircInstance.setUpdateTaskToNull();
+      main.setUpdateTaskToNull();
     }
   }
 
@@ -260,8 +259,8 @@ abstract class BaseWikiTask implements Runnable {
           "{{subst:CURRENTDAY}} {{subst:CURRENTMONTHNAME}} {{subst:CURRENTYEAR}}", errorLog, false,
           true);
     } catch (LoginException | IOException e) {
-      ircInstance.sendMessage(ircChannel,
-          "`tell @wikia/vstf/TyA could not save the log page; that is just great.");
+      main.sendMessageToTy("Failed to save the log page. It is probably too long. "
+          + e.getClass() + ": " + e.getMessage());
     }
 
   }
@@ -355,7 +354,7 @@ abstract class BaseWikiTask implements Runnable {
    * Sets the running parameter to false, to cause the main loop to end. Does not guarantee an
    * immediate stop.
    */
-  protected void stopRunning() {
+  public void stopRunning() {
     running = false;
   }
 
