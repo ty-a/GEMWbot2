@@ -70,15 +70,15 @@ public class UpdateChecker extends BaseWikiTask {
     } catch (Exception err) {
       System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
       err.printStackTrace();
-      ircInstance.setCheckerToNull();
-      ircInstance.getTellBotInstance().addTell("UpdateChecker", "wikia/vstf/TyA",
-          "Error: " + err.getClass() + ": " + err.getMessage(), null);
+      main.setCheckerToNull();
+      main.sendMessageToTy("Error in UpdateChecker: " + err.getClass() + ": "
+          + err.getMessage());
     }
   }
 
   /**
    * The main loop of the update checker. Wait 10 minutes, then see if the Jagex Graph API has a
-   * different price for the Abyssal whip than currently stored on the wiki. If so, start the GE
+   * different price for the Rune 2h sword than currently stored on the wiki. If so, start the GE
    * Updater and stop running the checker. After the GE update is finished it restarts the update
    * checker.
    */
@@ -99,7 +99,7 @@ public class UpdateChecker extends BaseWikiTask {
         if (jagexPrice.equalsIgnoreCase(wikiPrice)) {
           continue;
         } else {
-          ircInstance.startUpdater();
+          main.startUpdater(true);
           running = false;
         }
       } catch (MalformedURLException e) {
@@ -115,12 +115,12 @@ public class UpdateChecker extends BaseWikiTask {
 
   }
 
-  @Override
   /**
-   * Stops the update checker. Does not stop a GE update if it has started. 
+   * Stops the update checker. Does not stop a GE update if it has started.
    */
-  protected void stopRunning() {
+  @Override
+  public void stopRunning() {
     running = false;
-    ircInstance.setCheckerToNull();
+    main.setCheckerToNull();
   }
 }

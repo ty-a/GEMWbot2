@@ -68,7 +68,7 @@ abstract class BaseWikiTask implements Runnable {
   /**
    * The GEMWbot instance that allows us access to IRC and other bot functions
    */
-  protected GEMWbot ircInstance;
+  protected GEMWbot main;
 
   /**
    * The page on the wiki the bot would log data to, such as errors
@@ -92,6 +92,11 @@ abstract class BaseWikiTask implements Runnable {
    */
   protected String timestamp;
 
+  /**
+   * Whether we're running in rs or os mode
+   */
+  protected String mode;
+
 
   /**
    * Our constructor. It loads the settings from gemw.properties, creates the wikiBot object and
@@ -102,11 +107,10 @@ abstract class BaseWikiTask implements Runnable {
   BaseWikiTask(GEMWbot ircInstance) {
     if (!loadSettings()) {
       if (ircInstance != null)
-        ircInstance.getTellBotInstance().addTell("gemwbot", "wikia/vstf/TyA",
-            "failed to load config", null);
+        ircInstance.sendMessageToTy("failed to load config");
     };
 
-    wikiBot = new Wiki(wikiURL, "");
+    wikiBot = Wiki.createInstance(wikiURL, "", "https://");
     wikiBot.setMarkBot(true);
     wikiBot.setThrottle(0);
     wikiBot
@@ -116,8 +120,7 @@ abstract class BaseWikiTask implements Runnable {
     errorLog = "";
 
     if (ircInstance != null) {
-      ircChannel = ircInstance.getChannel();
-      this.ircInstance = ircInstance;
+      this.main = ircInstance;
     }
     timestamp = null;
 
@@ -142,6 +145,7 @@ abstract class BaseWikiTask implements Runnable {
       wikiUserPass = settings.getProperty("wikiUserPass");
       logPage = settings.getProperty("logPage");
       wikiURL = settings.getProperty("wikiURL");
+      mode = settings.getProperty("mode");
 
       if (wikiUserName == null) {
         System.out.println("[ERROR] wikiUserName is missing from gemw.properties; closing");
@@ -162,6 +166,21 @@ abstract class BaseWikiTask implements Runnable {
       if (wikiURL == null) {
         System.out.println("[ERROR] wikiURL is missing from gemw.properties; closing");
         return false;
+      }
+
+      if (mode == null) {
+        System.out.println("Mode isn't definied, assuming rs");
+      } else {
+        mode = mode.toLowerCase();
+        if (!(mode.equals("rs") || mode.equals("os"))) {
+          System.out.println("Unknown mode " + mode + ". Assuming rs");
+          mode = "rs";
+
+        }
+      }
+
+      if (mode.equals("os")) {
+        rsGraphAPILink = "http://services.runescape.com/m=itemdb_oldschool/api/graph/";
       }
 
     } catch (FileNotFoundException err) {
@@ -186,7 +205,7 @@ abstract class BaseWikiTask implements Runnable {
     } catch (Exception err) {
       System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
       err.printStackTrace();
-      ircInstance.setUpdateTaskToNull();
+      main.setUpdateTaskToNull();
     }
   }
 
@@ -240,8 +259,8 @@ abstract class BaseWikiTask implements Runnable {
           "{{subst:CURRENTDAY}} {{subst:CURRENTMONTHNAME}} {{subst:CURRENTYEAR}}", errorLog, false,
           true);
     } catch (LoginException | IOException e) {
-      ircInstance.sendMessage(ircChannel,
-          "`tell @wikia/vstf/TyA could not save the log page; that is just great.");
+      main.sendMessageToTy("Failed to save the log page. It is probably too long. "
+          + e.getClass() + ": " + e.getMessage());
     }
 
   }
@@ -335,7 +354,7 @@ abstract class BaseWikiTask implements Runnable {
    * Sets the running parameter to false, to cause the main loop to end. Does not guarantee an
    * immediate stop.
    */
-  protected void stopRunning() {
+  public void stopRunning() {
     running = false;
   }
 
