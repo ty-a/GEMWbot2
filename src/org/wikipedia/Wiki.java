@@ -6234,6 +6234,28 @@ public class Wiki implements Comparable<Wiki> {
     return links.toArray(new String[0][0]);
   }
 
+  public boolean thank(String revision) throws IOException {
+    Map<String, String> getparams = new HashMap<>();
+    getparams.put("action", "thank");
+
+    Map<String, Object> postparams = new HashMap<>();
+    postparams.put("rev", revision);
+    postparams.put("source", "tybotse5yser5y");
+    if (edittoken == null) {
+      edittoken = getToken("csrf");
+    } else {
+      postparams.put("token", edittoken);
+    }
+
+    String line = makeApiCall(getparams, postparams, "thank");
+    if (line.contains("<result success=\"1\"")) {
+      return true;
+    } else {
+      log(Level.SEVERE, "thank", "Thank failed: " + line);
+      return false;
+    }
+  }
+
   // INNER CLASSES
 
   /**
@@ -7715,7 +7737,7 @@ public class Wiki implements Comparable<Wiki> {
    * @param postparams if null, send the request using POST otherwise use GET
    * @param caller the caller of this method
    * @return the server response
-   * @throws IOException if a network error occurs
+   * @throws Exception
    * @throws SecurityException if we don't have the credentials to perform a privileged action
    *         (mostly avoidable)
    * @throws AssertionError if assert=user|bot fails
@@ -7876,7 +7898,7 @@ public class Wiki implements Comparable<Wiki> {
         case "permissiondenied":
           throw new SecurityException(description);
         default:
-          throw new UnknownError("MW API error. Server response was: " + response);
+          throw new IOException("MW API error. Server response was: " + response);
       }
     }
     return response;
@@ -7963,7 +7985,7 @@ public class Wiki implements Comparable<Wiki> {
    * @throws AccountLockedException if the user is blocked
    * @throws HttpRetryException if the database is locked or action was throttled and a retry failed
    * @throws AssertionError if assertions fail
-   * @throws UnknownError in the case of a MediaWiki bug
+   * @throws IOException in the case of a MediaWiki bug
    * @since 0.18
    */
   protected void checkErrorsAndUpdateStatus(String line, String caller) throws IOException,
@@ -7988,7 +8010,7 @@ public class Wiki implements Comparable<Wiki> {
       return;
     // empty response from server
     if (line.isEmpty())
-      throw new UnknownError("Received empty response from server!");
+      throw new IOException("Received empty response from server!");
     String error = parseAttribute(line, "code", 0);
     switch (error) {
     // protected pages

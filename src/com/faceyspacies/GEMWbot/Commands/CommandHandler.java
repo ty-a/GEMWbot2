@@ -16,9 +16,11 @@ public class CommandHandler {
   private static Map<String, Command> commands = new HashMap<>();
 
   private GEMWbot main;
+  private long botChannelId;
 
-  public CommandHandler(GEMWbot main) {
+  public CommandHandler(GEMWbot main, long botChannelId) {
     this.main = main;
+    this.botChannelId = botChannelId;
 
     commands.put("checker", new CheckerCommandHandler(main));
     commands.put("die", new DieCommandHandler(main));
@@ -34,6 +36,11 @@ public class CommandHandler {
     if (event.getAuthor().isBot()) {
       return;
     }
+
+    if (event.getChannel().getLongID() != botChannelId) {
+      return; // only listen in #bots
+    }
+
 
     String[] args = event.getMessage().getContent().split(" ");
 

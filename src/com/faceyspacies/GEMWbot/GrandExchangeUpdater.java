@@ -116,7 +116,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     numberOfPages = pages.length;
     numberOfPagesUpdated = 0;
 
-    List<String> itemsRemovedFromGE = getItemsRemovedFromGE();
+    // List<String> itemsRemovedFromGE = getItemsRemovedFromGE();
 
     for (int i = 0; i < pages.length; i++) {
 
@@ -126,8 +126,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         if (pages[i].contains("/Data")) // we update /Data pages as part of updating the main page
           continue;
 
-        if (itemsRemovedFromGE.contains(pages[i]))
-          continue;
+        // if (itemsRemovedFromGE.contains(pages[i]))
+        // continue;
 
         addToLog(doUpdates(pages[i]), pages[i]);
 
@@ -148,16 +148,18 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 
     try {
       wikiBot.edit("Module:GEPrices/data", GEPricesString, "updating thing");
-    } catch (LoginException | IOException e) {
+    } catch (LoginException | IOException | AssertionError e) {
       System.out.println("Failed to update GEPrices :(");
     }
 
-    updateTradeIndexData();
+    if (mode.equals("rs"))
+      updateTradeIndexData();
 
     updateLogPage();
 
     main.setUpdateTaskToNull();
     main.startChecker();
+    main.setLastGEDate(new Date());
     main.sendMessageToWikiChannel("GE Updates complete!"); // if we make it to end, we did it
   }
 
@@ -235,6 +237,9 @@ public class GrandExchangeUpdater extends BaseWikiTask {
           main.sendMessageToTy("I was unable to get the page list.");
           return null;
         }
+      } catch (AssertionError e) {
+        failures++;
+        Login();
       }
     }
 
@@ -474,6 +479,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         break;
       } catch (IOException e) {
         System.out.println("[ERROR] Unable to purge IndexPages due to IOException");
+      } catch (AssertionError e) {
+        System.out.println("Error: Unable to purge IndexPages due to AssertionError");
       }
     }
 

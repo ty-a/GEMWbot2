@@ -7,6 +7,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -50,7 +52,7 @@ abstract class BaseWikiTask implements Runnable {
   protected String wikiURL;
 
   /**
-   * The base link for the RuneScape Graph API.
+   * The base link for the RuneScape Graph API. Changed in loadSettings if mode == os
    */
   protected String rsGraphAPILink = "http://services.runescape.com/m=itemdb_rs/api/graph/";
 
@@ -202,8 +204,15 @@ abstract class BaseWikiTask implements Runnable {
 
     try {
       Start();
-    } catch (Exception err) {
-      System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
+    } catch (Exception | AssertionError err) {
+      StringWriter sw = new StringWriter();
+      err.printStackTrace(new PrintWriter(sw));
+
+      main.sendMessageToTy(sw.toString());
+
+      if (main.enableChecker)
+        main.startChecker();
+
       err.printStackTrace();
       main.setUpdateTaskToNull();
     }
@@ -227,7 +236,7 @@ abstract class BaseWikiTask implements Runnable {
         wikiBot.login(wikiUserName, wikiUserPass.toCharArray());
         return true;
 
-      } catch (FailedLoginException e) {
+      } catch (FailedLoginException | AssertionError e) {
         failures++;
         if (failures == 3) {
           addToLog(new UpdateResult("unable to login - check username/pass", false),
@@ -258,9 +267,9 @@ abstract class BaseWikiTask implements Runnable {
       wikiBot.newSection(logPage,
           "{{subst:CURRENTDAY}} {{subst:CURRENTMONTHNAME}} {{subst:CURRENTYEAR}}", errorLog, false,
           true);
-    } catch (LoginException | IOException e) {
-      main.sendMessageToTy("Failed to save the log page. It is probably too long. "
-          + e.getClass() + ": " + e.getMessage());
+    } catch (LoginException | IOException | AssertionError e) {
+      main.sendMessageToTy("Failed to save the log page. It is probably too long. " + e.getClass()
+          + ": " + e.getMessage());
     }
 
   }
@@ -294,6 +303,7 @@ abstract class BaseWikiTask implements Runnable {
     GEPrice gePrice = null;
     HttpURLConnection request;
     int newPrice = -1;
+    String data = "";
     try {
 
       request = (HttpURLConnection) url.openConnection();
@@ -305,7 +315,7 @@ abstract class BaseWikiTask implements Runnable {
 
       BufferedReader response = new BufferedReader(new InputStreamReader(request.getInputStream()));
 
-      String data = response.readLine(); // entire thing is given as one line
+      data = response.readLine(); // entire thing is given as one line
       response.close();
 
       JSONObject baseItem = new JSONObject(data);
@@ -342,8 +352,10 @@ abstract class BaseWikiTask implements Runnable {
     } catch (IOException e) {
       System.out.println("[ERROR] Unable to connect to GEMW API.");
       return null;
-    } catch (JSONException e) {
+    } catch (JSONException | NullPointerException e) {
       System.out.println("[ERROR] Unable to process JSON");
+      main.sendMessageToTy("JSONException/NullPointerException trying to load price on item id: "
+          + id + " GEPrice: " + gePrice.toString() + " data: " + data);
       return null;
     }
 

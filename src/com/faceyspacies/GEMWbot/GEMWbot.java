@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
+import java.util.Date;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -75,6 +76,11 @@ public class GEMWbot {
    * The prefix for commands
    */
   private String prefix;
+
+  /**
+   * The Date object of the last time we finished a GE Update
+   */
+  private Date lastGEUpdateDate = null;
 
   /**
    * Constructor.
@@ -247,6 +253,10 @@ public class GEMWbot {
 
     out += "Uptime: " + getUptime() + " Update Checker: " + ((checker != null) ? "on" : "off");
 
+    out +=
+        " Last Update was at "
+            + ((lastGEUpdateDate != null) ? lastGEUpdateDate.toString() : "Unknown");
+
     return out;
 
   }
@@ -275,7 +285,7 @@ public class GEMWbot {
   public IDiscordClient createClient() {
     ClientBuilder cb = new ClientBuilder();
     cb.withToken(token);
-    cb.registerListener(new CommandHandler(this));
+    cb.registerListener(new CommandHandler(this, BotsChannelId));
     IDiscordClient client = cb.login();
     return client;
   }
@@ -292,5 +302,23 @@ public class GEMWbot {
    */
   public String getCommandPrefix() {
     return prefix;
+  }
+
+  /**
+   * Returns the last Date object we have for completing GE updates
+   * 
+   * @return Date object of last GE update. Null if no updates have been ran
+   */
+  public Date getLastGEDate() {
+    return lastGEUpdateDate;
+  }
+
+  /**
+   * Allows us to set the last Date for completing the last GE Update
+   * 
+   * @param date
+   */
+  public void setLastGEDate(Date date) {
+    this.lastGEUpdateDate = date;
   }
 }
