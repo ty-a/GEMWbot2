@@ -6,10 +6,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.faceyspacies.GEMWbot.GEMWbot;
+
 import sx.blah.discord.api.events.EventSubscriber;
 import sx.blah.discord.handle.impl.events.guild.channel.message.MessageReceivedEvent;
-
-import com.faceyspacies.GEMWbot.GEMWbot;
+import sx.blah.discord.handle.impl.obj.ReactionEmoji;
 
 public class CommandHandler {
 
@@ -35,6 +36,24 @@ public class CommandHandler {
 
     if (event.getAuthor().isBot()) {
       return;
+    }
+
+    if (event.getMessage().getContent().contains("Obama")) {
+      event.getMessage().addReaction(ReactionEmoji.of("_H_", 528555920217866241L));
+    }
+
+    if (main.getCommandPrefix().equals("~rs_")) {
+      // only do this on tybot
+      if (event.getMessage().getContent().contains("RuneScape Wiki")) {
+        if (event.getMessage().getContent().indexOf("Old School RuneScape Wiki") == -1)
+          event.getMessage().addReaction(ReactionEmoji.of("rsw", 528556597077606410L));
+      } else if (event.getMessage().getContent().contains("Mod Legs")) {
+        event.getMessage().addReaction(ReactionEmoji.of("CookChamp", 497495449695944706L));
+      }
+    } else {
+      if (event.getMessage().getContent().contains("Old School RuneScape Wiki")) {
+        event.getMessage().addReaction(ReactionEmoji.of("osrsw", 528556597077606410L));
+      }
     }
 
     if (event.getChannel().getLongID() != botChannelId) {

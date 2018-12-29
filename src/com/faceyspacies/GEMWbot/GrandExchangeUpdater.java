@@ -2,13 +2,15 @@ package com.faceyspacies.GEMWbot;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,6 +62,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
    * populate Module:GEPrices/data
    */
   private String GEPricesString;
+
+  private String formattedDate;
 
   /**
    * Our constructor. Creates the wikiBot parameter, GEPricesString, and haveWarnedOnPriceOfZero.
@@ -113,6 +117,18 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       pages[i] = pages[i].replace("Exchange:", "");
     }
 
+    getTodaysEpochTimestamp();
+    DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd MMMM yyyy HH:mm:ss");
+    ZonedDateTime zdt =
+        ZonedDateTime.ofInstant(Instant.ofEpochSecond(Long.parseLong(timestamp)), ZoneId.of("UTC"));
+    formattedDate = dateFormatter.format(zdt) + " (UTC)";
+
+    if (timestamp == null) {
+      main.sendMessageToTy("timestamp is null");
+      System.out.println("timestamp is null");
+      System.exit(0);
+    }
+
     numberOfPages = pages.length;
     numberOfPagesUpdated = 0;
 
@@ -132,7 +148,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         addToLog(doUpdates(pages[i]), pages[i]);
 
         try {
-          Thread.sleep(2500);
+          Thread.sleep(3000);
         } catch (InterruptedException e) {
           main.sendMessageToTy("UNABLE TO SLEEP; I AM FREAKING OUT RIGHT NOW");
         }
@@ -304,9 +320,6 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       PriceIsZeroException, Exception {
     String itemID = null;
     GEPrice newPrice = null;
-    SimpleDateFormat dateFormatter = new SimpleDateFormat("hh:mm, MMMM dd, yyyy");
-    dateFormatter.setTimeZone(TimeZone.getTimeZone("UTC"));
-    String dateFormat = dateFormatter.format(new Date()) + " (UTC)";
 
     pageName = pageName.replace(" ", "_");
 
@@ -349,7 +362,10 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       if (newPrice == null) {
         try {
           // wait 3 seconds to avoid rate-limiting
-          Thread.sleep(3000);
+          if (mode.equals("os"))
+            Thread.sleep(4000);
+          else
+            Thread.sleep(3000);
         } catch (InterruptedException e) {
         }
 
@@ -371,12 +387,13 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       if (pageContent.indexOf("volumeDate") != -1) {
         pageContent = pageContent.replaceAll("volume\\s*=.*\\n", "volume     = " + volume + ",\n");
         pageContent =
-            pageContent.replaceAll("volumeDate\\s*=.*\\n", "volumeDate = '" + dateFormat + "',\n");
+            pageContent.replaceAll("volumeDate\\s*=.*\\n", "volumeDate = '" + formattedDate
+                + "',\n");
       } else {
         // newly has volume
         String newVolText;
         newVolText = "    volume     = " + volume + ",\n";
-        newVolText += "    volumeDate = '" + dateFormat + "',\n";
+        newVolText += "    volumeDate = '" + formattedDate + "',\n";
         newVolText += "    icon";
         pageContent = pageContent.replaceAll("    icon", newVolText);
       }
@@ -401,7 +418,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
             String.format("price      = %d,\n    last       =",
                 Integer.parseInt(newPrice.getPrice())));
     pageContent =
-        pageContent.replaceAll(" date\\s*=", " date       = '" + dateFormat
+        pageContent.replaceAll(" date\\s*=", " date       = '" + formattedDate
             + "',\n    lastDate   =");
 
     wikiBot.edit(pageName, pageContent, "Updating price");
@@ -554,7 +571,10 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       // The actual ID isn't important as long as it is a valid one
       // because we just grab the timestamp off of it
       price = loadCurPrice("245");
-      return price.getTimestamp();
+      if (price == null)
+        return null;
+      else
+        return price.getTimestamp();
     } catch (MalformedURLException e) {
       e.printStackTrace();
       return null;

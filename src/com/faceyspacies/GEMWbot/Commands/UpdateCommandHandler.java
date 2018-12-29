@@ -28,7 +28,7 @@ public class UpdateCommandHandler extends Command {
       if (isAdmin(e.getGuild(), e.getAuthor())) {
         e.getMessage().reply("Starting the Grand Exchange Updater!");
 
-        if (main.getChecker() == null) {
+        if (main.getChecker() != null) {
           main.getChecker().stopRunning();
         }
 

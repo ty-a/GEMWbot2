@@ -156,7 +156,7 @@ public class GEMWbot {
    * @param message The message to send
    */
   protected void sendMessageToTy(String message) {
-    discord.getUserByID(TyUserId).getOrCreatePMChannel().sendMessage(message);
+    discord.fetchUser(TyUserId).getOrCreatePMChannel().sendMessage(message);
   }
 
   protected void sendMessageToWikiChannel(String message) {

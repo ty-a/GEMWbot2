@@ -318,6 +318,17 @@ abstract class BaseWikiTask implements Runnable {
       data = response.readLine(); // entire thing is given as one line
       response.close();
 
+      if (request.getResponseCode() == 503) {
+        // we've been throttled.
+        main.sendMessageToTy("We've been throttled boss.");
+        try {
+          Thread.sleep(5000);
+        } catch (InterruptedException e) {
+          // ???
+        }
+        return null;
+      }
+
       JSONObject baseItem = new JSONObject(data);
       JSONObject dailyItem = baseItem.getJSONObject("daily");
 
@@ -353,11 +364,12 @@ abstract class BaseWikiTask implements Runnable {
       System.out.println("[ERROR] Unable to connect to GEMW API.");
       return null;
     } catch (JSONException | NullPointerException e) {
-      System.out.println("[ERROR] Unable to process JSON");
+      System.out.println("[ERROR] Unable to process JSON for " + id);
       main.sendMessageToTy("JSONException/NullPointerException trying to load price on item id: "
           + id + " GEPrice: " + gePrice.toString() + " data: " + data);
       return null;
     }
+
 
     return gePrice;
   }
