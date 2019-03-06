@@ -71,14 +71,13 @@ public class UpdateChecker extends BaseWikiTask {
       System.out.println("[EXCEPTION] " + err.getClass() + ": " + err.getMessage());
       err.printStackTrace();
       main.setCheckerToNull();
-      main.sendMessageToTy("Error in UpdateChecker: " + err.getClass() + ": "
-          + err.getMessage());
+      main.sendMessageToTy("Error in UpdateChecker: " + err.getClass() + ": " + err.getMessage());
     }
   }
 
   /**
    * The main loop of the update checker. Wait 10 minutes, then see if the Jagex Graph API has a
-   * different price for the Rune 2h sword than currently stored on the wiki. If so, start the GE
+   * different price for the Abyssal whip than currently stored on the wiki. If so, start the GE
    * Updater and stop running the checker. After the GE update is finished it restarts the update
    * checker.
    */
@@ -89,8 +88,8 @@ public class UpdateChecker extends BaseWikiTask {
 
         // ensure we're getting the freshest of prices
         timestamp = null;
-        String jagexPrice = loadCurPrice("1319").getPrice();
-        String wikiPrice = loadPriceFromWiki("Module:Exchange/Rune 2h sword");
+        String jagexPrice = loadCurPrice("4151").getPrice();
+        String wikiPrice = loadPriceFromWiki("Module:Exchange/Abyssal whip");
 
         if (jagexPrice == null || wikiPrice == null) { // try again in 10 mins
           continue;

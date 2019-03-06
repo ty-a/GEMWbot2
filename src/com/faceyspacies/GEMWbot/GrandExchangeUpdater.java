@@ -162,10 +162,14 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     GEPricesString = GEPricesString.substring(0, GEPricesString.length() - 2);
     GEPricesString += "\n}";
 
-    try {
-      wikiBot.edit("Module:GEPrices/data", GEPricesString, "updating thing");
-    } catch (LoginException | IOException | AssertionError e) {
-      System.out.println("Failed to update GEPrices :(");
+    for (int i = 0; i < 3; i++) {
+      try {
+        String oldprices = wikiBot.getPageText("Module:GEPrices/data");
+        wikiBot.edit("Module:GEPrices/data", GEPricesString, "updating thing");
+        wikiBot.edit("Module:LastPrices/data", oldprices, "updating other thing");
+      } catch (LoginException | IOException | AssertionError e) {
+        System.out.println("Failed to update GEPrices :(");
+      }
     }
 
     if (mode.equals("rs"))
@@ -238,14 +242,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     while (failures < 3) {
       try {
         String[] pages;
-        // test wiki does not have namespace 112, but main wiki does
-        if (mode.equals("os")) {
-          pages = wikiBot.getCategoryMembers("Grand Exchange", 114);
-        } else {
-          pages = wikiBot.getCategoryMembers("Grand Exchange", 112);
-        }
+        pages = wikiBot.listPages("Module:Exchange/", null, 828, -1, -1, false);
 
-        // String[] pages = wikiBot.getCategoryMembers("Grand Exchange");
         return pages;
       } catch (IOException e1) {
         failures++;
@@ -316,8 +314,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
    * @throws PriceIsZeroException
    * @throws Exception
    */
-  private UpdateResult updateModulePage(String pageName) throws IOException, LoginException,
-      PriceIsZeroException, Exception {
+  private UpdateResult updateModulePage(String pageName)
+      throws IOException, LoginException, PriceIsZeroException, Exception {
     String itemID = null;
     GEPrice newPrice = null;
 
@@ -378,17 +376,29 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     }
 
     // if after three tries we still cannot get a price, give up
-    if (newPrice == null)
+    if (newPrice == null) {
+      // we still want to include the item in our giant prices module though
+      // so grab it off of the page
+      // if we can't get it off the page, I guess yolo since we have nothing anyway
+      Pattern priceregex = Pattern.compile("price\\s*= (\\d+)");
+      Matcher priceMatcher = priceregex.matcher(pageContent);
+
+      if (priceMatcher.find()) {
+        if (!GEPricesString.contains(pageName.substring(16))) {
+          GEPricesString += "  ['" + pageName.substring(16).replace("'", "\\'").replace("_", " ")
+              + "'] = " + priceMatcher.group(1) + ",\n";
+        }
+      }
       return new UpdateResult("unable to fetch price", false);
+    }
 
     String volume = volumes.getVolumeFor(newPrice.getId());
     if (volume != null) { // WE HAVE VOLUME DATA, WOO!
       // since we don't need the data again, it is safe to just remove it
       if (pageContent.indexOf("volumeDate") != -1) {
         pageContent = pageContent.replaceAll("volume\\s*=.*\\n", "volume     = " + volume + ",\n");
-        pageContent =
-            pageContent.replaceAll("volumeDate\\s*=.*\\n", "volumeDate = '" + formattedDate
-                + "',\n");
+        pageContent = pageContent.replaceAll("volumeDate\\s*=.*\\n",
+            "volumeDate = '" + formattedDate + "',\n");
       } else {
         // newly has volume
         String newVolText;
@@ -400,9 +410,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     }
 
     if (!GEPricesString.contains(pageName.substring(16))) {
-      GEPricesString +=
-          "  ['" + pageName.substring(16).replace("'", "\\'").replace("_", " ") + "'] = "
-              + newPrice.getPrice() + ",\n";
+      GEPricesString += "  ['" + pageName.substring(16).replace("'", "\\'").replace("_", " ")
+          + "'] = " + newPrice.getPrice() + ",\n";
     }
 
     // remove data that we don't need
@@ -412,14 +421,10 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     // replaces Price/Date with the new date and pushes the old price down to the LastPrice/LastDate
     // param
     // which we removed above.
-    pageContent =
-        pageContent.replaceAll(
-            "price\\s*=",
-            String.format("price      = %d,\n    last       =",
-                Integer.parseInt(newPrice.getPrice())));
-    pageContent =
-        pageContent.replaceAll(" date\\s*=", " date       = '" + formattedDate
-            + "',\n    lastDate   =");
+    pageContent = pageContent.replaceAll("price\\s*=",
+        String.format("price      = %d,\n    last       =", Integer.parseInt(newPrice.getPrice())));
+    pageContent = pageContent.replaceAll(" date\\s*=",
+        " date       = '" + formattedDate + "',\n    lastDate   =");
 
     wikiBot.edit(pageName, pageContent, "Updating price");
 
@@ -487,9 +492,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
   private void updateTradeIndexData() {
     String parsedContent;
 
-    String[] indexPages =
-        {"GE Common Trade Index", "GE Discontinued Rare Index", "GE Food Index", "GE Herb Index",
-            "GE Log Index", "GE Metal Index", "GE Rune Index"};
+    String[] indexPages = {"GE Common Trade Index", "GE Discontinued Rare Index", "GE Food Index",
+        "GE Herb Index", "GE Log Index", "GE Metal Index", "GE Rune Index"};
     for (int i = 0; i < 3; i++) {
       try {
         wikiBot.purge(false, indexPages);
@@ -544,8 +548,8 @@ public class GrandExchangeUpdater extends BaseWikiTask {
 
     for (int i = 0; i < 3; i++) {
       try {
-        addToLog(updateModuleData(page + "/Data", wikiBot.getPageText(page + "/Data"), price), page
-            + "/Data");
+        addToLog(updateModuleData(page + "/Data", wikiBot.getPageText(page + "/Data"), price),
+            page + "/Data");
         break;
       } catch (IOException e) {
         System.out.println("[ERROR] Unable to update data on " + page);
