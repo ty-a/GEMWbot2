@@ -85,7 +85,7 @@ public class GEMWbot {
   /**
    * Constructor.
    * 
-   * Loads our settings and opens the IRC connection. Based on settings, enables UpdateChecker.
+   * Loads our settings and opens the Discord connection. Based on settings, enables UpdateChecker.
    */
   public GEMWbot() {
     loadDiscordSettings();

@@ -16,6 +16,9 @@ import java.util.regex.Pattern;
 
 import javax.security.auth.login.LoginException;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.wikipedia.Wiki;
 
 import com.faceyspacies.GEMWbot.Exceptions.PriceIsZeroException;
@@ -145,6 +148,9 @@ public class GrandExchangeUpdater extends BaseWikiTask {
           continue;
 
         if (pages[i].contains("/doc")) // don't care about doc pages
+          continue;
+
+        if (pages[i].contains("/test")) // don't care about test pages
           continue;
 
         // if (itemsRemovedFromGE.contains(pages[i]))
@@ -355,7 +361,12 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     // try to load the price up to 3 times
     for (int i = 0; i < 3; i++) {
       try {
-        newPrice = loadCurPrice(itemID);
+        if (mode.equals("rs")) {
+          newPrice = loadCurPriceRS(itemID);
+        } else {
+          newPrice = loadCurPriceOS(itemID);
+        }
+
       } catch (MalformedURLException e) {
         System.out.println("[ERROR] Item ID " + itemID + " is invalid!");
         return new UpdateResult("item id is invalid", false);
@@ -372,7 +383,11 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         } catch (InterruptedException e) {
         }
 
-        newPrice = loadCurPrice(itemID);
+        if (mode.equals("rs")) {
+          newPrice = loadCurPriceRS(itemID);
+        } else {
+          newPrice = loadCurPriceOS(itemID);
+        }
       } else if (newPrice.getPrice().equalsIgnoreCase("0")) {
         throw new PriceIsZeroException();
       } else {
@@ -397,7 +412,13 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       return new UpdateResult("unable to fetch price", false);
     }
 
-    String volume = volumes.getVolumeFor(newPrice.getId());
+    String volume;
+    if (mode.equals("rs")) {
+      volume = volumes.getVolumeFor(newPrice.getId());
+    } else {
+      volume = newPrice.getVolume();
+    }
+
     if (volume != null) { // WE HAVE VOLUME DATA, WOO!
       // since we don't need the data again, it is safe to just remove it
       if (pageContent.indexOf("volumeDate") != -1) {
@@ -475,7 +496,11 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     if (price.getId() == null) {
       volume = null;
     } else {
-      volume = volumes.getVolumeFor(price.getId());
+      if (mode.equals("rs")) {
+        volume = volumes.getVolumeFor(price.getId());
+      } else {
+        volume = price.getVolume();
+      }
     }
 
     if (volume == null) {
@@ -571,7 +596,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       // 245 is the itemID for Wine of Zamorak
       // The actual ID isn't important as long as it is a valid one
       // because we just grab the timestamp off of it
-      price = loadCurPrice("245");
+      price = loadCurPriceRS("245");
       if (price == null)
         return null;
       else
@@ -599,6 +624,33 @@ public class GrandExchangeUpdater extends BaseWikiTask {
    */
   public int getNumberOfPagesUpdated() {
     return numberOfPagesUpdated;
+  }
+
+  private GEPrice loadCurPriceOS(String itemID) {
+    String apiurl = "http://services.runescape.com/m=itemdb_oldschool/viewitem?obj=" + itemID;
+
+    try {
+
+      Document top100 = Jsoup.connect(apiurl).get();
+
+      Pattern getData = Pattern.compile(
+          "average180\\.push\\(\\[new Date\\(.*\\), (\\d+), (\\d+)\\]\\);\\s*trade180\\.push\\(\\[new Date\\(.*\\), (\\d+)\\]\\);\\s*\\<\\/script\\>");
+      for (Element element : top100.getElementsByTag("script")) {
+        if (element.toString().contains("var average30 = [['Date',")) {
+          Matcher matcher = getData.matcher(element.toString());
+          if (!matcher.find()) {
+            main.sendMessageToTy("Unable to load item price for item " + itemID);
+            return null;
+          }
+
+          return new GEPrice(timestamp, matcher.group(1), itemID, matcher.group(3));
+        }
+      }
+
+    } catch (IOException e) {
+
+    }
+    return null;
   }
 
   /**

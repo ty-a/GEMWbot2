@@ -297,7 +297,7 @@ abstract class BaseWikiTask implements Runnable {
    * @return GEPrice object containing the item's price, ID, and timestamp.
    * @throws MalformedURLException only an issue if you provide a bad item id.
    */
-  protected GEPrice loadCurPrice(String id) throws MalformedURLException {
+  protected GEPrice loadCurPriceRS(String id) throws MalformedURLException {
 
     URL url = new URL(rsGraphAPILink + id + ".json");
     GEPrice gePrice = null;

@@ -30,6 +30,13 @@ public class GEPrice {
   private String id;
 
   /**
+   * Volume provided to the constructor
+   */
+  private String volume;
+
+
+
+  /**
    * Constructor used most of the time. Provides the timestamp, price, and ID.
    * 
    * @param timestamp
@@ -40,6 +47,21 @@ public class GEPrice {
     this.timestamp = timestamp;
     this.price = "" + price;
     this.id = id;
+  }
+
+  /**
+   * Constructor used most of the time. Provides the timestamp, price, and ID.
+   * 
+   * @param timestamp
+   * @param price
+   * @param id
+   * @param volume
+   */
+  public GEPrice(String timestamp, String price, String id, String volume) {
+    this.timestamp = timestamp;
+    this.price = "" + price;
+    this.id = id;
+    this.volume = volume;
   }
 
   /**
@@ -71,6 +93,15 @@ public class GEPrice {
    */
   public String getPrice() {
     return this.price;
+  }
+
+  /**
+   * Getter method to get the volume
+   * 
+   * @return The volume provided when created
+   */
+  public String getVolume() {
+    return volume;
   }
 
   /**
