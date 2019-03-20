@@ -117,7 +117,9 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       pages[i] = pages[i].replace("Exchange:", "");
     }
 
-    getTodaysEpochTimestamp();
+    // TODO: refactor this
+    getTodaysEpochTimestamp(); // this sets timestamp in a round-a-bout way by since loadCurPrice
+                               // sets the timestamp field probs should change this
     DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd MMMM yyyy HH:mm:ss");
     ZonedDateTime zdt =
         ZonedDateTime.ofInstant(Instant.ofEpochSecond(Long.parseLong(timestamp)), ZoneId.of("UTC"));
@@ -142,6 +144,9 @@ public class GrandExchangeUpdater extends BaseWikiTask {
         if (pages[i].contains("/Data")) // we update /Data pages as part of updating the main page
           continue;
 
+        if (pages[i].contains("/doc")) // don't care about doc pages
+          continue;
+
         // if (itemsRemovedFromGE.contains(pages[i]))
         // continue;
 
@@ -158,7 +163,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
     }
 
     // Add an "TyBot updated" value to the GEPricesString to tell how fresh the data is
-    GEPricesString += "  ['TyBot updated'] = " + getTodaysEpochTimestamp() + ",\n";
+    GEPricesString += "  ['TyBot updated'] = " + timestamp + ",\n";
     GEPricesString = GEPricesString.substring(0, GEPricesString.length() - 2);
     GEPricesString += "\n}";
 
@@ -505,13 +510,6 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       }
     }
 
-    String currentDayTimestamp = getTodaysEpochTimestamp();
-
-
-    if (currentDayTimestamp == null) {
-      return;
-    }
-
     for (String page : indexPages) {
       // Only exists in template namespace
       try {
@@ -527,8 +525,7 @@ public class GrandExchangeUpdater extends BaseWikiTask {
       parsedContent =
           parsedContent.substring(parsedContent.indexOf("<p>") + 3, parsedContent.indexOf("</p>"));
 
-      doTradeIndexUpdate("Module:Exchange/" + page.replaceAll("GE ", ""), currentDayTimestamp,
-          parsedContent);
+      doTradeIndexUpdate("Module:Exchange/" + page.replaceAll("GE ", ""), timestamp, parsedContent);
 
     }
   }

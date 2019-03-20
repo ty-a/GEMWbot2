@@ -11,12 +11,12 @@ import java.util.Date;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
+import com.faceyspacies.GEMWbot.Commands.CommandHandler;
+
 import sx.blah.discord.api.ClientBuilder;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.events.EventSubscriber;
 import sx.blah.discord.handle.impl.events.ReadyEvent;
-
-import com.faceyspacies.GEMWbot.Commands.CommandHandler;
 
 
 /**
@@ -202,7 +202,8 @@ public class GEMWbot {
       try {
 
         if (makeAnnouncement) {
-          sendMessageToWikiChannel("Detected a Grand Exchange Update, starting to update prices on the wiki.");
+          sendMessageToWikiChannel(
+              "Detected a Grand Exchange Update, starting to update prices on the wiki.");
         }
         updateTask = new GrandExchangeUpdater(this);
         Thread updateThread = new Thread(updateTask);
@@ -246,16 +247,14 @@ public class GEMWbot {
       out = "The GE Updater is not running! ";
 
     } else {
-      out =
-          "Updating page " + updateTask.getNumberOfPagesUpdated() + " out of "
-              + updateTask.getNumberOfPages() + "! ";
+      out = "Updating page (not item!) " + updateTask.getNumberOfPagesUpdated() + " out of "
+          + updateTask.getNumberOfPages() + "! ";
     }
 
     out += "Uptime: " + getUptime() + " Update Checker: " + ((checker != null) ? "on" : "off");
 
-    out +=
-        " Last Update was at "
-            + ((lastGEUpdateDate != null) ? lastGEUpdateDate.toString() : "Unknown");
+    out += " Last Update was at "
+        + ((lastGEUpdateDate != null) ? lastGEUpdateDate.toString() : "Unknown");
 
     return out;
 
@@ -271,12 +270,10 @@ public class GEMWbot {
     long millis = rb.getUptime();
     long day = TimeUnit.MILLISECONDS.toDays(millis);
     long hour = TimeUnit.MILLISECONDS.toHours(millis) - TimeUnit.DAYS.toHours(day);
-    long minute =
-        TimeUnit.MILLISECONDS.toMinutes(millis) - TimeUnit.DAYS.toMinutes(day)
-            - TimeUnit.HOURS.toMinutes(hour);
-    long second =
-        TimeUnit.MILLISECONDS.toSeconds(millis) - TimeUnit.DAYS.toSeconds(day)
-            - TimeUnit.HOURS.toSeconds(hour) - TimeUnit.MINUTES.toSeconds(minute);
+    long minute = TimeUnit.MILLISECONDS.toMinutes(millis) - TimeUnit.DAYS.toMinutes(day)
+        - TimeUnit.HOURS.toMinutes(hour);
+    long second = TimeUnit.MILLISECONDS.toSeconds(millis) - TimeUnit.DAYS.toSeconds(day)
+        - TimeUnit.HOURS.toSeconds(hour) - TimeUnit.MINUTES.toSeconds(minute);
     String uptime =
         String.format("%02d days %02d hours %02d minutes %02d seconds", day, hour, minute, second);
     return uptime;
